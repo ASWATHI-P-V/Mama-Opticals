@@ -1,0 +1,41 @@
+{
+  "name": "ecom-new",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A Strapi application",
+  "license": "MIT",
+  "author": {
+    "name": "A Strapi developer"
+  },
+  "scripts": {
+    "build": "strapi build",
+    "deploy": "strapi deploy",
+    "develop": "strapi develop",
+    "postinstall": "patch-package",
+    "start": "strapi start",
+    "strapi": "strapi"
+  },
+  "dependencies": {
+    "@strapi/plugin-cloud": "4.25.22",
+    "@strapi/plugin-i18n": "4.25.22",
+    "@strapi/plugin-users-permissions": "4.25.22",
+    "@strapi/strapi": "4.25.22",
+    "google-libphonenumber": "^3.2.38",
+    "mysql": "2.18.1",
+    "mysql2": "^3.14.2",
+    "otp-generator": "^4.0.1",
+    "patch-package": "^8.0.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "react-router-dom": "5.3.4",
+    "strapi-phone-validator": "^0.3.2",
+    "styled-components": "5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0 <=20.x.x",
+    "npm": ">=6.0.0"
+  },
+  "strapi": {
+    "uuid": "8c573ef2-0001-4754-849f-58a1c143562d"
+  }
+}

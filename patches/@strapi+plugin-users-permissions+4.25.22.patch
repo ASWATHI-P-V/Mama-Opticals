@@ -1,0 +1,50 @@
+diff --git a/node_modules/@strapi/plugin-users-permissions/server/controllers/content-manager-user.js b/node_modules/@strapi/plugin-users-permissions/server/controllers/content-manager-user.js
+index b6e10cd..f364e41 100644
+--- a/node_modules/@strapi/plugin-users-permissions/server/controllers/content-manager-user.js
++++ b/node_modules/@strapi/plugin-users-permissions/server/controllers/content-manager-user.js
+@@ -66,13 +66,13 @@ module.exports = {
+ 
+     await validateCreateUserBody(ctx.request.body);
+ 
+-    const userWithSameUsername = await strapi
+-      .query('plugin::users-permissions.user')
+-      .findOne({ where: { username } });
++    // const userWithSameUsername = await strapi
++    //   .query('plugin::users-permissions.user')
++    //   .findOne({ where: { username } });
+ 
+-    if (userWithSameUsername) {
+-      throw new ApplicationError('Username already taken');
+-    }
++    // if (userWithSameUsername) {
++    //   throw new ApplicationError('Username already taken');
++    // }
+ 
+     if (advanced.unique_email) {
+       const userWithSameEmail = await strapi
+diff --git a/node_modules/@strapi/plugin-users-permissions/server/controllers/validation/user.js b/node_modules/@strapi/plugin-users-permissions/server/controllers/validation/user.js
+index d62f3f7..0011205 100644
+--- a/node_modules/@strapi/plugin-users-permissions/server/controllers/validation/user.js
++++ b/node_modules/@strapi/plugin-users-permissions/server/controllers/validation/user.js
+@@ -8,8 +8,8 @@ const deleteRoleSchema = yup.object().shape({
+ 
+ const createUserBodySchema = yup.object().shape({
+   email: yup.string().email().required(),
+-  username: yup.string().min(1).required(),
+-  password: yup.string().min(1).required(),
++  // name: yup.string().min(1).required(),
++  // password: yup.string().min(1).required(),
+   role: yup.lazy((value) =>
+     typeof value === 'object'
+       ? yup
+@@ -28,8 +28,8 @@ const createUserBodySchema = yup.object().shape({
+ 
+ const updateUserBodySchema = yup.object().shape({
+   email: yup.string().email().min(1),
+-  username: yup.string().min(1),
+-  password: yup.string().min(1),
++  // username: yup.string().min(1),
++  // password: yup.string().min(1),
+   role: yup.lazy((value) =>
+     typeof value === 'object'
+       ? yup.object().shape({
