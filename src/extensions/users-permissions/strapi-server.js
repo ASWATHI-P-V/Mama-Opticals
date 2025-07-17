@@ -18,19 +18,19 @@ const getService = (name) => {
   return strapi.plugin("users-permissions").service(name);
 };
 
-const { handleErrors } = require("./strapi-functions.js");
+const {
+  handleErrors,
+  userAllDetails,
+  deleteUserRelationDetails,
+} = require("./strapi-functions.js");
 
 module.exports = (plugin) => {
-  // --- Register Method ---
+  //MARK: Register Method ---
   plugin.controllers.auth.register = async (ctx) => {
     try {
       const { body, files } = ctx.request;
 
-      validateBodyRequiredFields(body, [
-        "name",
-        "phone",
-        "email",
-      ]);
+      validateBodyRequiredFields(body, ["name", "phone", "email"]);
 
       const pluginStore = await strapi.store({
         type: "plugin",
@@ -93,7 +93,8 @@ module.exports = (plugin) => {
 
       return ctx.send({
         success: true,
-        message: "User registered successfully. OTP has been sent for verification.",
+        message:
+          "User registered successfully. OTP has been sent for verification.",
         data: {
           user: {
             id: userCreated.id,
@@ -117,7 +118,7 @@ module.exports = (plugin) => {
     }
   };
 
-  // --- callbackWeb Method ---
+  // MARK: callbackWeb Method ---
   plugin.controllers.auth.callbackWeb = async (ctx) => {
     try {
       const { body } = ctx.request;
@@ -185,24 +186,20 @@ module.exports = (plugin) => {
     }
   };
 
-  // --- callback Method ---
+  //MARK:callback Method ---
   plugin.controllers.auth.callback = async (ctx) => {
     try {
       const { body } = ctx.request;
 
       validateBodyRequiredFields(body, ["identifier"]);
 
-      let user = await strapi.entityService.findMany(
-        "plugin::users-permissions.user",
-        {
+      let user = await strapi.entityService
+        .findMany("plugin::users-permissions.user", {
           filters: {
-            $or: [
-              { email: body.identifier },
-              { phone: body.identifier },
-            ],
+            $or: [{ email: body.identifier }, { phone: body.identifier }],
           },
-        }
-      ).then(users => users[0]);
+        })
+        .then((users) => users[0]);
 
       const otp = await generateOTP();
       const otpExpiryTime = new Date(new Date().getTime() + 2.5 * 60000);
@@ -230,11 +227,15 @@ module.exports = (plugin) => {
             ...user,
           },
         });
-
       } else {
-        const pluginStore = await strapi.store({ type: "plugin", name: "users-permissions" });
+        const pluginStore = await strapi.store({
+          type: "plugin",
+          name: "users-permissions",
+        });
         const settings = await pluginStore.get({ key: "advanced" });
-        const role = await strapi.query("plugin::users-permissions.role").findOne({ where: { type: settings.default_role } });
+        const role = await strapi
+          .query("plugin::users-permissions.role")
+          .findOne({ where: { type: settings.default_role } });
 
         if (!role) {
           throw new NotFoundError("No default role found");
@@ -292,8 +293,7 @@ module.exports = (plugin) => {
       );
     }
   };
-
-
+  //MARK:otp verification
   // --- verifyOtp Method ---
   plugin.controllers.auth.verifyOtp = async (ctx) => {
     try {
@@ -358,7 +358,7 @@ module.exports = (plugin) => {
     }
   };
 
-  // --- me Method ---
+  //MARK: me Method
   plugin.controllers.user.me = async (ctx) => {
     try {
       const { id: userId } = ctx.state.user;
@@ -396,7 +396,7 @@ module.exports = (plugin) => {
     }
   };
 
-  // --- userProfile Method ---
+  //MARK: userProfile Method
   plugin.controllers.user.userProfile = async (ctx) => {
     try {
       let userId;
@@ -448,7 +448,7 @@ module.exports = (plugin) => {
     }
   };
 
-  // --- changeProfile Method ---
+  //MARK:changeProfile Method ---
   plugin.controllers.auth.changeProfile = async (ctx) => {
     try {
       const { body, files } = ctx.request;
@@ -542,30 +542,51 @@ module.exports = (plugin) => {
     }
   };
 
-  // --- deleteAccount Method ---
+// MARK: deleteAccount Method ---
+
   // plugin.controllers.auth.deleteAccount = async (ctx) => {
   //   try {
   //     const { id: userId } = ctx.state.user;
 
-  //     const userFound = await userAllDetails(userId);
+  //     const userFound = await userAllDetails(userId); // This fetches full details for relation deletion
 
   //     if (!userFound) {
   //       throw new NotFoundError("User not found");
   //     }
 
+  //     // Delete related data first
+  //     await deleteUserRelationDetails(userFound);
+
+  //     // Then delete the user itself
   //     const userDeleted = await strapi.entityService.delete(
   //       "plugin::users-permissions.user",
-  //       userId
+  //       userId,
+  //       {
+  //         // Specify the fields you want to get back for the response
+  //         fields: ["name", "email", "phone", "createdAt", "updatedAt"],
+  //         populate: {
+  //           profileImage: {
+  //             fields: ["url", "formats"], // Populate profileImage if it was on the user
+  //           },
+  //         },
+  //       }
   //     );
 
-  //     if (userDeleted) {
-  //       await deleteUserRelationDetails(userFound);
-  //     }
-
+  //     // Format the response data to match your 'me' function's output
+  //     // Note: If profileImage was successfully deleted along with the user,
+  //     // it will be null here, reflecting the actual state.
   //     return ctx.send({
   //       success: true,
-  //       message: "User is deleted",
-  //       data: userDeleted,
+  //       message: "User is deleted successfully", // More explicit message
+  //       data: {
+  //         id: userDeleted.id,
+  //         name: userDeleted.name,
+  //         email: userDeleted.email,
+  //         phone: userDeleted.phone,
+  //         createdAt: userDeleted.createdAt,
+  //         updatedAt: userDeleted.updatedAt,
+  //         profileImage: userDeleted.profileImage || null, // Ensure it's null if not present
+  //       },
   //     });
   //   } catch (error) {
   //     const customizedError = handleErrors(error);
@@ -580,7 +601,48 @@ module.exports = (plugin) => {
   //   }
   // };
 
-  // --- Routes ---
+
+
+
+
+  plugin.controllers.auth.deleteAccount = async (ctx) => {
+    try {
+      const { id: userId } = ctx.state.user;
+
+      const userFound = await userAllDetails(userId);
+
+      if (!userFound) {
+        throw new NotFoundError("User not found");
+      }
+
+      const userDeleted = await strapi.entityService.delete(
+        "plugin::users-permissions.user",
+        userId
+      );
+
+      if (userDeleted) {
+        await deleteUserRelationDetails(userFound);
+      }
+
+      return ctx.send({
+        success: true,
+        message: "User is deleted",
+        data: userDeleted,
+      });
+    } catch (error) {
+      const customizedError = handleErrors(error);
+
+      return ctx.send(
+        {
+          success: false,
+          message: customizedError.message,
+        },
+        handleStatusCode(error) || 500
+      );
+    }
+  };
+
+  //MARK: Routes ---
   plugin.routes["content-api"].routes.push(
     {
       method: "POST",
@@ -617,21 +679,20 @@ module.exports = (plugin) => {
         middlewares: ["plugin::users-permissions.rateLimit"],
         prefix: "",
       },
+    },
+    {
+      method: "DELETE",
+      path: "/auth/deleteAccount",
+      handler: "auth.deleteAccount",
+      config: {
+        middlewares: ["plugin::users-permissions.rateLimit"],
+        prefix: "",
+      },
     }
-    // {
-    //   method: "DELETE",
-    //   path: "/auth/deleteAccount",
-    //   handler: "auth.deleteAccount",
-    //   config: {
-    //     middlewares: ["plugin::users-permissions.rateLimit"],
-    //     prefix: "",
-    //   },
-    // }
   );
 
   return plugin;
 };
-
 
 //MARK:user create
 // module.exports = (plugin) => {
