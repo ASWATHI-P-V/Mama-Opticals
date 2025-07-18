@@ -377,9 +377,9 @@ export interface ApiCartCart extends Schema.CollectionType {
     createdAt: Attribute.DateTime;
     createdBy: Attribute.Relation<'api::cart.cart', 'oneToOne', 'admin::user'> &
       Attribute.Private;
-    products: Attribute.Relation<
+    product: Attribute.Relation<
       'api::cart.cart',
-      'manyToMany',
+      'oneToOne',
       'api::product.product'
     >;
     publishedAt: Attribute.DateTime;
@@ -485,6 +485,7 @@ export interface ApiOrderOrder extends Schema.CollectionType {
 export interface ApiProductProduct extends Schema.CollectionType {
   collectionName: 'products';
   info: {
+    description: '';
     displayName: 'Product';
     pluralName: 'products';
     singularName: 'product';
@@ -493,11 +494,6 @@ export interface ApiProductProduct extends Schema.CollectionType {
     draftAndPublish: true;
   };
   attributes: {
-    carts: Attribute.Relation<
-      'api::product.product',
-      'manyToMany',
-      'api::cart.cart'
-    >;
     category: Attribute.Relation<
       'api::product.product',
       'manyToOne',
@@ -528,6 +524,11 @@ export interface ApiProductProduct extends Schema.CollectionType {
       'admin::user'
     > &
       Attribute.Private;
+    wishlistedByUsers: Attribute.Relation<
+      'api::product.product',
+      'oneToMany',
+      'plugin::users-permissions.user'
+    >;
   };
 }
 

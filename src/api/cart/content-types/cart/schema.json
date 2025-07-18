@@ -17,11 +17,10 @@
       "relation": "oneToOne",
       "target": "plugin::users-permissions.user"
     },
-    "products": {
+    "product": {
       "type": "relation",
-      "relation": "manyToMany",
-      "target": "api::product.product",
-      "inversedBy": "carts"
+      "relation": "oneToOne",
+      "target": "api::product.product"
     },
     "quantity": {
       "type": "integer"

@@ -20,6 +20,7 @@ module.exports = [
             "data:",
             "blob:",
             "https://cdnjs.cloudflare.com",
+            "https://market-assets.strapi.io",
           ],
         },
       },
