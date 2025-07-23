@@ -21,6 +21,7 @@
     "@strapi/plugin-users-permissions": "4.25.22",
     "@strapi/provider-email-nodemailer": "^5.18.1",
     "@strapi/strapi": "4.25.22",
+    "bcryptjs": "^3.0.2",
     "google-libphonenumber": "^3.2.38",
     "mysql": "2.18.1",
     "mysql2": "^3.14.2",

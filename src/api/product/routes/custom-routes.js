@@ -19,7 +19,11 @@ module.exports = {
     // ... other auto-generated routes
 
     // ---- NEW WISHLIST ROUTES ----
-
+    {
+      method: 'GET',
+      path: '/products',
+      handler: 'api::product.product.find', 
+    },
     {
       method: 'POST',
       path: '/products/:productId/wishlist',
@@ -35,7 +39,7 @@ module.exports = {
       path: '/products/my-wishlist',
       handler: 'api::product.product.getMyWishlist',
     },
-    { // IMPORTANT: Place specific routes before general ones!
+    { 
       method: 'DELETE',
       path: '/products/my-wishlist/clear',
       handler: 'api::product.product.clearMyWishlist',

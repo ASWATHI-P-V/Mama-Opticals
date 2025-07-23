@@ -51,6 +51,12 @@
       "type": "relation",
       "relation": "oneToMany",
       "target": "plugin::users-permissions.user"
+    },
+    "color": {
+      "type": "string"
+    },
+    "salesCount": {
+      "type": "integer"
     }
   }
 }

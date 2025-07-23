@@ -499,6 +499,7 @@ export interface ApiProductProduct extends Schema.CollectionType {
       'manyToOne',
       'api::category.category'
     >;
+    color: Attribute.String;
     createdAt: Attribute.DateTime;
     createdBy: Attribute.Relation<
       'api::product.product',
@@ -517,6 +518,7 @@ export interface ApiProductProduct extends Schema.CollectionType {
     >;
     price: Attribute.Integer;
     publishedAt: Attribute.DateTime;
+    salesCount: Attribute.Integer;
     updatedAt: Attribute.DateTime;
     updatedBy: Attribute.Relation<
       'api::product.product',
@@ -937,11 +939,11 @@ export interface PluginUsersPermissionsRole extends Schema.CollectionType {
 }
 
 export interface PluginUsersPermissionsUser extends Schema.CollectionType {
-  collectionName: 'up_users';
+  collectionName: 'users-permissions_users';
   info: {
     description: '';
     displayName: 'User';
-    name: 'user';
+    name: 'User';
     pluralName: 'users';
     singularName: 'user';
   };
@@ -950,6 +952,9 @@ export interface PluginUsersPermissionsUser extends Schema.CollectionType {
     timestamps: true;
   };
   attributes: {
+    blocked: Attribute.Boolean & Attribute.DefaultTo<false>;
+    confirmationToken: Attribute.String & Attribute.Private;
+    confirmed: Attribute.Boolean & Attribute.DefaultTo<false>;
     createdAt: Attribute.DateTime;
     createdBy: Attribute.Relation<
       'plugin::users-permissions.user',
@@ -957,33 +962,38 @@ export interface PluginUsersPermissionsUser extends Schema.CollectionType {
       'admin::user'
     > &
       Attribute.Private;
+    dateOfBirth: Attribute.Date & Attribute.Required;
     email: Attribute.Email &
+      Attribute.Required &
       Attribute.Unique &
       Attribute.SetMinMaxLength<{
         minLength: 6;
       }>;
-    name: Attribute.String;
+    gender: Attribute.Enumeration<['Male', 'Female', 'Other']> &
+      Attribute.Required;
+    name: Attribute.String & Attribute.Required;
     orders: Attribute.Relation<
       'plugin::users-permissions.user',
       'oneToMany',
       'api::order.order'
     >;
-    otp: Attribute.Integer;
-    otpExpiryTime: Attribute.DateTime;
-    phone: Attribute.String &
-      Attribute.Unique &
-      Attribute.CustomField<
-        'plugin::strapi-phone-validator.phone',
-        {
-          country: 'in';
-        }
-      >;
+    otp: Attribute.String & Attribute.Private;
+    otpExpiryTime: Attribute.DateTime & Attribute.Private;
+    password: Attribute.Password &
+      Attribute.Private &
+      Attribute.SetMinMaxLength<{
+        minLength: 6;
+      }>;
+    phone: Attribute.String & Attribute.Required & Attribute.Unique;
     profileImage: Attribute.Media<'images'>;
+    provider: Attribute.String;
+    resetPasswordToken: Attribute.String & Attribute.Private;
     role: Attribute.Relation<
       'plugin::users-permissions.user',
       'manyToOne',
       'plugin::users-permissions.role'
     >;
+    tempNewPasswordHash: Attribute.String & Attribute.Private;
     updatedAt: Attribute.DateTime;
     updatedBy: Attribute.Relation<
       'plugin::users-permissions.user',

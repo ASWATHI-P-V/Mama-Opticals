@@ -8,8 +8,6 @@ module.exports = {
    * This gives you an opportunity to extend code.
    */
   register({ strapi }) {
-     console.dir(strapi.plugins, { depth: null })
-    console.dir(strapi.plugins["users-permissions"].contentTypes, { depth: null }); 
   },
 
   /**
