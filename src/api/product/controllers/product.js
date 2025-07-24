@@ -159,112 +159,319 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
   },
 
 //MARK:FILTER PRODUCTS
-async find(ctx) {
-        try {
-            const { query } = ctx; // Access query parameters
-            let filters = {};
-            let sort = [];
-            let populate = ['image', 'category']; // Populate image and category relation for filtering
 
-            // --- 1. Search (using '_q' for fuzzy search across specified fields) ---
-            if (query._q) {
-                // Apply search across 'name' and 'description' fields
-                filters.$or = [
-                    { name: { $containsi: query._q } },
-                    { description: { $containsi: query._q } },
-                ];
-                delete query._q; // Remove _q from the direct query to prevent conflicts
-            }
 
-            // --- 2. Filtering ---
+  async find(ctx) {
+    try {
+      const { query } = ctx; // Access query parameters
+      let filters = {};
+      let sort = [];
+      let populate = [
+        'image',
+        'category',
+        'brand', // New population
+        'frameMaterial', // New population
+        'frameShape', // New population
+        'lensType', // New population
+        'lensCoating', // New population
+        'lensThickness', // New population
+        'frameWeight', // New population
+        'storeAddress' // New population
+      ];
 
-            // Price Range
-            if (query.price_gte) {
-                filters.price = { ...filters.price, $gte: parseFloat(query.price_gte) };
-                delete query.price_gte;
-            }
-            if (query.price_lte) {
-                filters.price = { ...filters.price, $lte: parseFloat(query.price_lte) };
-                delete query.price_lte;
-            }
+      // --- 1. Search (using '_q' for fuzzy search across specified fields) ---
+      if (query._q) {
+        // Apply search across 'name', 'description', and new related fields
+        filters.$or = [
+          { name: { $containsi: query._q } },
+          { description: { $containsi: query._q } },
+          { color: { $containsi: query._q } }, // Search by color
+          { size: { $containsi: query._q } }, // Search by size
+          { brand: { name: { $containsi: query._q } } }, // Search by brand name
+          { frameMaterial: { name: { $containsi: query._q } } }, // Search by frame material name
+          { frameShape: { name: { $containsi: query._q } } }, // Search by frame shape name
+          { lensType: { name: { $containsi: query._q } } }, // Search by lens type name
+          { lensCoating: { name: { $containsi: query._q } } }, // Search by lens coating name
+          { lensThickness: { name: { $containsi: query._q } } }, // Search by lens thickness name
+          { frameWeight: { name: { $containsi: query._q } } } // Search by frame weight name
+        ];
+        delete query._q; // Remove _q from the direct query to prevent conflicts
+      }
 
-            // Availability (inStock - Boolean field)
-            if (query.inStock !== undefined) {
-                // Convert string "true" / "false" from URL to boolean
-                filters.inStock = query.inStock === 'true';
-                delete query.inStock;
-            }
+      // --- 2. Filtering ---
 
-            // Category (assuming your Category content type has a 'name' field)
-            if (query.category) {
-                // Filter by the name of the related category
-                filters.category = { name: { $eqi: query.category } };
-                delete query.category;
-            }
+      // Price Range (existing)
+      if (query.price_gte) {
+        filters.price = { ...filters.price, $gte: parseFloat(query.price_gte) };
+        delete query.price_gte;
+      }
+      if (query.price_lte) {
+        filters.price = { ...filters.price, $lte: parseFloat(query.price_lte) };
+        delete query.price_lte;
+      }
 
-            // Color (Text field on Product)
-            if (query.color) {
-                // Case-insensitive exact match for color
-                filters.color = { $eqi: query.color };
-                delete query.color;
-            }
+      // Offer Price Range (New)
+      if (query.offerPrice_gte) {
+        filters.offerPrice = { ...filters.offerPrice, $gte: parseFloat(query.offerPrice_gte) };
+        delete query.offerPrice_gte;
+      }
+      if (query.offerPrice_lte) {
+        filters.offerPrice = { ...filters.offerPrice, $lte: parseFloat(query.offerPrice_lte) };
+        delete query.offerPrice_lte;
+      }
 
-            // --- 3. Sorting ---
-            if (query._sort) {
-                // Example: _sort=price:asc,name:desc
-                // Supports multiple sort criteria separated by commas
-                const sortParams = Array.isArray(query._sort) ? query._sort : [query._sort];
-                sort = sortParams.map(s => {
-                    const [field, order] = s.split(':');
-                    return { [field]: order.toLowerCase() };
-                });
-                delete query._sort;
-            } else {
-                // Default sorting: Newest arrivals (using Strapi's default 'createdAt' field)
-                sort.push({ createdAt: 'desc' });
-            }
+      // Availability (inStock - Boolean field) (existing)
+      if (query.inStock !== undefined) {
+        filters.inStock = query.inStock === 'true';
+        delete query.inStock;
+      }
 
-            // --- 4. Pagination ---
-            // Extract pagination parameters
-            const page = parseInt(query.page || 1);
-            const pageSize = parseInt(query.pageSize || 10);
-            const start = (page - 1) * pageSize; // Calculate offset for pagination
-            const limit = pageSize;
+      // Category (by name) (existing)
+      if (query.category) {
+        filters.category = { name: { $eqi: query.category } };
+        delete query.category;
+      }
 
-            // --- Construct final query options for entityService.findMany ---
-            const findOptions = {
-                filters: filters,
-                sort: sort,
-                populate: populate,
-                start: start, // Offset for pagination
-                limit: limit, // Limit for pagination
-            };
+      // Color (Text field on Product) (existing)
+      if (query.color) {
+        filters.color = { $eqi: query.color }; // Case-insensitive exact match for color
+        delete query.color;
+      }
 
-            // Fetch products and total count separately for pagination metadata
-            const products = await strapi.entityService.findMany("api::product.product", findOptions);
-            const total = await strapi.entityService.count("api::product.product", { filters: filters });
+      // Brand (by name of the related Brand) (New)
+      if (query.brand) {
+        filters.brand = { name: { $eqi: query.brand } };
+        delete query.brand;
+      }
 
-            // Return response with data and pagination metadata
-            ctx.body = {
-                data: products,
-                meta: {
-                    pagination: {
-                        page: page,
-                        pageSize: limit,
-                        pageCount: Math.ceil(total / limit),
-                        total: total,
-                    },
-                },
-            };
+      // Frame Material (by name of the related FrameMaterial) (New)
+      if (query.frameMaterial) {
+        filters.frameMaterial = { name: { $eqi: query.frameMaterial } };
+        delete query.frameMaterial;
+      }
 
-        } catch (error) {
-            const customizedError = handleErrors(error); // Using your existing error handler
-            return ctx.send(
-                { success: false, message: customizedError.message },
-                handleStatusCode(error) || 500 // Using your existing status code handler
-            );
-        }
-    },
+      // Frame Shape (by name of the related FrameShape) (New)
+      if (query.frameShape) {
+        filters.frameShape = { name: { $eqi: query.frameShape } };
+        delete query.frameShape;
+      }
+
+      // Lens Type (by name of the related LensType) (New)
+      if (query.lensType) {
+        filters.lensType = { name: { $eqi: query.lensType } };
+        delete query.lensType;
+      }
+
+      // Lens Coating (by name of the related LensCoating) (New)
+      if (query.lensCoating) {
+        filters.lensCoating = { name: { $eqi: query.lensCoating } };
+        delete query.lensCoating;
+      }
+
+      // Lens Thickness (by name of the related LensThickness) (New)
+      if (query.lensThickness) {
+        filters.lensThickness = { name: { $eqi: query.lensThickness } };
+        delete query.lensThickness;
+      }
+
+      // Frame Weight (by name of the related FrameWeight) (New)
+      if (query.frameWeight) {
+        filters.frameWeight = { name: { $eqi: query.frameWeight } };
+        delete query.frameWeight;
+      }
+
+      // Frame Size (direct string match on 'size' field) (New)
+      // This will allow filtering by exact size string, e.g., ?frameSize=52-18-140
+      if (query.frameSize) {
+        filters.size = { $eqi: query.frameSize };
+        delete query.frameSize;
+      }
+
+      // Rating (gte) (New)
+      if (query.rating_gte) {
+        filters.rating = { ...filters.rating, $gte: parseFloat(query.rating_gte) };
+        delete query.rating_gte;
+      }
+
+      // --- 3. Sorting ---
+      if (query._sort) {
+        const sortParams = Array.isArray(query._sort) ? query._sort : [query._sort];
+        sort = sortParams.map(s => {
+          const [field, order] = s.split(':');
+          // Handle sorting by relation names if needed, e.g., 'brand.name:asc'
+          if (field.includes('.')) {
+            const [relation, subField] = field.split('.');
+            return { [relation]: { [subField]: order.toLowerCase() } };
+          }
+          return { [field]: order.toLowerCase() };
+        });
+        delete query._sort;
+      } else {
+        // Default sorting: Newest arrivals
+        sort.push({ createdAt: 'desc' });
+      }
+
+      // --- 4. Pagination ---
+      const page = parseInt(query.page || 1);
+      const pageSize = parseInt(query.pageSize || 10);
+      const start = (page - 1) * pageSize;
+      const limit = pageSize;
+
+      // --- Construct final query options for entityService.findMany ---
+      const findOptions = {
+        filters: filters,
+        sort: sort,
+        populate: populate,
+        start: start,
+        limit: limit,
+      };
+
+      // Fetch products and total count separately for pagination metadata
+      const products = await strapi.entityService.findMany("api::product.product", findOptions);
+      const total = await strapi.entityService.count("api::product.product", { filters: filters });
+
+      // Sanitize the output to remove sensitive fields if any (though not expected for products)
+      const sanitizedProducts = await Promise.all(
+        products.map((product) =>
+          sanitize.contentAPI.output(product, strapi.contentType('api::product.product'))
+        )
+      );
+
+      // Return response with data and pagination metadata
+      ctx.body = {
+        data: sanitizedProducts,
+        meta: {
+          pagination: {
+            page: page,
+            pageSize: limit,
+            pageCount: Math.ceil(total / limit),
+            total: total,
+          },
+        },
+      };
+
+    } catch (error) {
+      const customizedError = handleErrors(error); // Using your existing error handler
+      return ctx.send(
+        { success: false, message: customizedError.message },
+        handleStatusCode(error) || 500 // Using your existing status code handler
+      );
+    }
+  },
+
+
+
+
+
+
+
+
+// async find(ctx) {
+//         try {
+//             const { query } = ctx; // Access query parameters
+//             let filters = {};
+//             let sort = [];
+//             let populate = ['image', 'category']; // Populate image and category relation for filtering
+
+//             // --- 1. Search (using '_q' for fuzzy search across specified fields) ---
+//             if (query._q) {
+//                 // Apply search across 'name' and 'description' fields
+//                 filters.$or = [
+//                     { name: { $containsi: query._q } },
+//                     { description: { $containsi: query._q } },
+//                 ];
+//                 delete query._q; // Remove _q from the direct query to prevent conflicts
+//             }
+
+//             // --- 2. Filtering ---
+
+//             // Price Range
+//             if (query.price_gte) {
+//                 filters.price = { ...filters.price, $gte: parseFloat(query.price_gte) };
+//                 delete query.price_gte;
+//             }
+//             if (query.price_lte) {
+//                 filters.price = { ...filters.price, $lte: parseFloat(query.price_lte) };
+//                 delete query.price_lte;
+//             }
+
+//             // Availability (inStock - Boolean field)
+//             if (query.inStock !== undefined) {
+//                 // Convert string "true" / "false" from URL to boolean
+//                 filters.inStock = query.inStock === 'true';
+//                 delete query.inStock;
+//             }
+
+//             // Category (assuming your Category content type has a 'name' field)
+//             if (query.category) {
+//                 // Filter by the name of the related category
+//                 filters.category = { name: { $eqi: query.category } };
+//                 delete query.category;
+//             }
+
+//             // Color (Text field on Product)
+//             if (query.color) {
+//                 // Case-insensitive exact match for color
+//                 filters.color = { $eqi: query.color };
+//                 delete query.color;
+//             }
+
+//             // --- 3. Sorting ---
+//             if (query._sort) {
+//                 // Example: _sort=price:asc,name:desc
+//                 // Supports multiple sort criteria separated by commas
+//                 const sortParams = Array.isArray(query._sort) ? query._sort : [query._sort];
+//                 sort = sortParams.map(s => {
+//                     const [field, order] = s.split(':');
+//                     return { [field]: order.toLowerCase() };
+//                 });
+//                 delete query._sort;
+//             } else {
+//                 // Default sorting: Newest arrivals (using Strapi's default 'createdAt' field)
+//                 sort.push({ createdAt: 'desc' });
+//             }
+
+//             // --- 4. Pagination ---
+//             // Extract pagination parameters
+//             const page = parseInt(query.page || 1);
+//             const pageSize = parseInt(query.pageSize || 10);
+//             const start = (page - 1) * pageSize; // Calculate offset for pagination
+//             const limit = pageSize;
+
+//             // --- Construct final query options for entityService.findMany ---
+//             const findOptions = {
+//                 filters: filters,
+//                 sort: sort,
+//                 populate: populate,
+//                 start: start, // Offset for pagination
+//                 limit: limit, // Limit for pagination
+//             };
+
+//             // Fetch products and total count separately for pagination metadata
+//             const products = await strapi.entityService.findMany("api::product.product", findOptions);
+//             const total = await strapi.entityService.count("api::product.product", { filters: filters });
+
+//             // Return response with data and pagination metadata
+//             ctx.body = {
+//                 data: products,
+//                 meta: {
+//                     pagination: {
+//                         page: page,
+//                         pageSize: limit,
+//                         pageCount: Math.ceil(total / limit),
+//                         total: total,
+//                     },
+//                 },
+//             };
+
+//         } catch (error) {
+//             const customizedError = handleErrors(error); // Using your existing error handler
+//             return ctx.send(
+//                 { success: false, message: customizedError.message },
+//                 handleStatusCode(error) || 500 // Using your existing status code handler
+//             );
+//         }
+//     },
 
 
 

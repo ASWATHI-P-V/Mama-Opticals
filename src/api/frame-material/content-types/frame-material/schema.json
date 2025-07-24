@@ -1,0 +1,27 @@
+{
+  "kind": "collectionType",
+  "collectionName": "frame_materials",
+  "info": {
+    "singularName": "frame-material",
+    "pluralName": "frame-materials",
+    "displayName": "Frame Material",
+    "description": ""
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "name": {
+      "type": "string",
+      "unique": true,
+      "required": true
+    },
+    "products": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::product.product",
+      "mappedBy": "frameMaterial"
+    }
+  }
+}

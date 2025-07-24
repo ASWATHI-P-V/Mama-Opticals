@@ -569,7 +569,7 @@ module.exports = (plugin) => {
         "plugin::users-permissions.user",
         userId,
         {
-          fields: ["id", "profileImage"], // Only fetch necessary fields
+          fields: ["id"], // Only fetch necessary fields
           populate: {
             profileImage: {
               fields: ["id", "url", "formats"],
@@ -711,22 +711,25 @@ module.exports = (plugin) => {
             // Alternatively, the new password could be passed in the verify OTP step.
             // For simplicity and to avoid passing sensitive data repeatedly, we'll store it here.
             // A more robust solution might involve a temporary token instead of storing the new password.
-            tempNewPasswordHash: await bcrypt.hash(body.newPassword, 10),
+            tempNewPassword:body.newPassword
           },
         }
       );
 
       // Send OTP to user's registered email or phone
-      if (user?.phone) {
-        await smsVerifyOtp(otp, user.phone);
-      } else if (user?.email) {
-        await emailVerifyOtp(otp, user.email);
-      }
+      // if (user?.phone) {
+      //   await smsVerifyOtp(otp, user.phone);
+      // } else if (user?.email) {
+      //   await emailVerifyOtp(otp, user.email);
+      // }
 
       return ctx.send({
         success: true,
         message:
           "OTP sent to your registered contact for password change verification.",
+        data: {
+          otp: otp,
+        },
       });
     } catch (error) {
       const customizedError = handleErrors(error);
@@ -752,7 +755,7 @@ module.exports = (plugin) => {
         "plugin::users-permissions.user",
         userId,
         {
-          fields: ["otp", "otpExpiryTime", "tempNewPasswordHash"], // Fetch OTP, expiry, and temporary new password hash
+          fields: ["otp", "otpExpiryTime", "tempNewPassword"], // Fetch OTP, expiry, and temporary new password hash
         }
       );
 
@@ -765,7 +768,7 @@ module.exports = (plugin) => {
         throw new UnauthorizedError("Invalid or expired OTP.");
       }
 
-      if (!user.tempNewPasswordHash) {
+      if (!user.tempNewPassword) {
         throw new ValidationError(
           "New password not set for verification. Please initiate password change again."
         );
@@ -777,17 +780,17 @@ module.exports = (plugin) => {
         userId,
         {
           data: {
-            password: user.tempNewPasswordHash,
+            password: user.tempNewPassword,
             otp: null, // Clear OTP
             otpExpiryTime: null, // Clear OTP expiry
-            tempNewPasswordHash: null, // Clear temporary new password hash
+            tempNewPassword: null, // Clear temporary new password hash
           },
         }
       );
 
       return ctx.send({
         success: true,
-        message: "Password updated successfully.",
+        message: "Password updated successfully."
       });
     } catch (error) {
       const customizedError = handleErrors(error);

@@ -1,0 +1,27 @@
+{
+  "kind": "collectionType",
+  "collectionName": "lens_coatings",
+  "info": {
+    "singularName": "product-lens-coating",
+    "pluralName": "product-lens-coatings",
+    "displayName": "Lens Coating",
+    "description": ""
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "name": {
+      "type": "string",
+      "unique": true,
+      "required": true
+    },
+    "products": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::product.product",
+      "mappedBy": "lensCoating"
+    }
+  }
+}

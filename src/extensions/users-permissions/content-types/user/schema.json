@@ -93,7 +93,7 @@
       ],
       "required": true
     },
-    "tempNewPasswordHash": {
+    "tempNewPassword": {
       "type": "string",
       "private": true,
       "description": "Temporary storage for new password hash during password change flow"

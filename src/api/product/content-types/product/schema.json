@@ -57,6 +57,24 @@
     },
     "salesCount": {
       "type": "integer"
+    },
+    "lensType": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::product-lens-type.product-lens-type",
+      "inversedBy": "products"
+    },
+    "lensCoating": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::product-lens-coating.product-lens-coating",
+      "inversedBy": "products"
+    },
+    "frameWeight": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::product-frame-weight.product-frame-weight",
+      "inversedBy": "products"
     }
   }
 }
