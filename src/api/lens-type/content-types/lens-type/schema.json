@@ -1,10 +1,10 @@
 {
   "kind": "collectionType",
-  "collectionName": "brands",
+  "collectionName": "lens_types",
   "info": {
-    "singularName": "brand",
-    "pluralName": "brands",
-    "displayName": "Brand",
+    "singularName": "lens-type",
+    "pluralName": "lens-types",
+    "displayName": "Lens Type",
     "description": ""
   },
   "options": {

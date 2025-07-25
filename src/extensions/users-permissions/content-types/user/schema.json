@@ -62,15 +62,21 @@
       "unique": false
     },
     "phone": {
-      "type": "string",
+          "type": "customField",
+      "customField": "plugin::strapi-phone-validator.phone",
+      "options": {
+        "country": "in"
+      },
       "unique": true,
-      "required": true
+      "configurable": false
     },
     "profileImage": {
       "type": "media",
       "multiple": false,
       "required": false,
-      "allowedTypes": ["images"]
+      "allowedTypes": [
+        "images"
+      ]
     },
     "otp": {
       "type": "string",
@@ -102,6 +108,12 @@
       "type": "relation",
       "relation": "oneToMany",
       "target": "api::order.order",
+      "mappedBy": "user"
+    },
+    "addresses": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::address.address",
       "mappedBy": "user"
     }
   }

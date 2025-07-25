@@ -7,25 +7,42 @@
  */
 
 const { createCoreController } = require("@strapi/strapi").factories;
+const strapiUtils = require("@strapi/utils"); // Import the entire @strapi/utils module
+const { ValidationError } = strapiUtils.errors; // Access ValidationError from the imported module
 
 // ===========================================================================
 // Helper Functions: (Make sure these are available, either defined here or imported)
 // ===========================================================================
 const handleErrors = (error) => {
   console.error("Error occurred:", error);
+  const errorMessage = String(error.message || ''); // Ensure message is a string for robust comparison
+
+  // Prioritize Strapi's ValidationError messages
+  if (error.name === "ValidationError") {
+    return { message: errorMessage };
+  }
   if (error.name === "NotFoundError") {
-    return { message: error.message };
+    return { message: errorMessage };
   }
-  if (error.message && error.message.includes("Missing required field")) {
-    return { message: error.message };
+  // Fallback for generic errors, including "Missing required field" from validateBodyRequiredFields
+  if (errorMessage.includes("Missing required field")) {
+    return { message: errorMessage };
   }
+  // Fallback for any other unexpected errors
   return { message: "An unexpected error occurred." };
 };
 
 const handleStatusCode = (error) => {
+  const errorMessage = String(error.message || ''); // Ensure message is a string for robust comparison
+
+  // Prioritize Strapi's ValidationError status
+  if (error.name === "ValidationError") return 400;
   if (error.name === "NotFoundError") return 404;
-  if (error.message && error.message.includes("Missing required field"))
+  // Fallback for generic errors, including "Missing required field" from validateBodyRequiredFields
+  if (errorMessage.includes("Missing required field")) {
     return 400;
+  }
+  // If it's a generic error not matching specific messages, assume 500 for server-side issues
   return 500;
 };
 
@@ -50,38 +67,87 @@ const validateBodyRequiredFields = (body, fields) => {
 // --- END Placeholder for helper functions ---
 
 module.exports = createCoreController("api::product.product", ({ strapi }) => ({
+  /**
+   * Create a new product.
+   * Handles linking to related content types via their IDs (expects arrays for oneToMany relations on Product side).
+   */
   async create(ctx) {
     try {
       // Strapi v4 typically wraps request body in 'data'
       const requestData = ctx.request.body.data || ctx.request.body;
-      const { name, description, price, inStock, image, category } =
-        requestData;
+      const {
+        name,
+        description,
+        price,
+        inStock,
+        image, // Expects ID of uploaded media
+        category, // Expects ID (manyToOne)
+        // Relations that are oneToMany on Product side (expect arrays of IDs)
+        lens_types,
+        lens_coatings,
+        frame_weights,
+        brands,
+        frame_materials,
+        frame_shapes,
+        lens_thicknesses,
+        frame_sizes,
+        color,
+        salesCount,
+      } = requestData;
 
       // Validate required fields
       validateBodyRequiredFields(requestData, ["name", "price"]);
 
       // Basic type/value validation
       if (isNaN(price) || price < 0) {
-        throw new Error("Price must be a non-negative number.");
+        throw new ValidationError("Price must be a non-negative number.");
       }
       if (
         typeof inStock !== "boolean" &&
         inStock !== undefined &&
         inStock !== null
       ) {
-        throw new Error("inStock must be a boolean (true/false).");
+        throw new ValidationError("inStock must be a boolean (true/false).");
       }
 
-      // Optional: Validate if category exists if category ID is provided
+      // Validate existence of related entities for manyToOne (category)
       if (category) {
-        const categoryEntity = await strapi.entityService.findOne(
-          "api::category.category",
-          category
-        );
+        if (Array.isArray(category)) {
+            throw new ValidationError("Category must be a single ID, not an array.");
+        }
+        const categoryEntity = await strapi.entityService.findOne("api::category.category", category);
         if (!categoryEntity) {
           throw new NotFoundError("Provided category not found.");
         }
       }
+
+      // Validate existence of related entities for oneToMany relations (expect arrays of IDs)
+      const validateOneToManyRelationIds = async (target, ids, fieldName) => {
+        if (ids !== undefined && ids !== null) { // Allow empty array or null/undefined if not required
+            if (!Array.isArray(ids)) {
+                throw new ValidationError(`${fieldName} must be an array of IDs.`);
+            }
+            for (const id of ids) {
+                if (typeof id !== 'number' && typeof id !== 'string') { // IDs can be numbers or strings
+                    throw new ValidationError(`Invalid ID type in ${fieldName} array.`);
+                }
+                const entity = await strapi.entityService.findOne(target, id);
+                if (!entity) {
+                    throw new NotFoundError(`Provided ${fieldName} ID ${id} not found.`);
+                }
+            }
+        }
+      };
+
+      await validateOneToManyRelationIds("api::lens-type.lens-type", lens_types, "lens_types");
+      await validateOneToManyRelationIds("api::lens-coating.lens-coating", lens_coatings, "lens_coatings");
+      await validateOneToManyRelationIds("api::frame-weight.frame-weight", frame_weights, "frame_weights");
+      await validateOneToManyRelationIds("api::brand.brand", brands, "brands");
+      await validateOneToManyRelationIds("api::frame-material.frame-material", frame_materials, "frame_materials");
+      await validateOneToManyRelationIds("api::frame-shape.frame-shape", frame_shapes, "frame_shapes");
+      await validateOneToManyRelationIds("api::lens-thickness.lens-thickness", lens_thicknesses, "lens_thicknesses");
+      await validateOneToManyRelationIds("api::frame-size.frame-size", frame_sizes, "frame_sizes");
+
 
       // Create the new product
       const newProduct = await strapi.entityService.create(
@@ -94,17 +160,42 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
             inStock: inStock !== undefined ? inStock : true, // Default to true if not provided
             image, // This expects the image ID if it's already uploaded
             category, // This expects the category ID
-            // publishedAt: new Date(), // Uncomment this line if you want to publish immediately upon creation
+            lens_types, // Expects array of IDs
+            lens_coatings, // Expects array of IDs
+            frame_weights, // Expects array of IDs
+            brands, // Expects array of IDs
+            frame_materials, // Expects array of IDs
+            frame_shapes, // Expects array of IDs
+            lens_thicknesses, // Expects array of IDs
+            frame_sizes, // Expects array of IDs
+            color,
+            salesCount: salesCount || 0, // Default salesCount to 0 if not provided
+            publishedAt: new Date(), // Publish immediately upon creation
           },
-          // Populate relations to get full details in the response
-          populate: ["image", "category", "wishlistedByUsers"],
+          // Populate all relations to get full details in the response
+          populate: [
+            "image",
+            "category",
+            "lens_types",
+            "lens_coatings",
+            "frame_weights",
+            "brands",
+            "frame_materials",
+            "frame_shapes",
+            "lens_thicknesses",
+            "frame_sizes",
+            "wishlistedByUsers"
+          ],
         }
       );
+
+      // Sanitize the output
+      const sanitizedProduct = await strapiUtils.sanitize.contentAPI.output(newProduct, strapi.contentType('api::product.product'));
 
       return ctx.send({
         success: true,
         message: "Product created successfully.",
-        data: newProduct,
+        data: sanitizedProduct,
       });
     } catch (error) {
       const customizedError = handleErrors(error);
@@ -115,68 +206,27 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
     }
   },
 
-  // --- NEW: Custom Delete Product Method (Overrides default) ---
-  // DELETE /api/products/:id
-  async delete(ctx) {
-    try {
-      const { id } = ctx.params; // Product ID from URL parameters
-
-      // Check if the product exists
-      const existingProduct = await strapi.entityService.findOne(
-        "api::product.product",
-        id
-      );
-
-      if (!existingProduct) {
-        throw new NotFoundError("Product not found.");
-      }
-
-      // Strapi's entityService.delete for many-to-many relations like 'wishlistedByUsers'
-      // will automatically handle disconnecting the product from users' wishlists.
-      // If you had separate tables like 'CartItem' or 'OrderItem', you might need
-      // to consider cascading deletes or specific cleanup logic there.
-
-      const deletedProduct = await strapi.entityService.delete(
-        "api::product.product",
-        id
-      );
-
-      return ctx.send({
-        success: true,
-        message: "Product deleted successfully.",
-        data: {
-          id: deletedProduct.id,
-          name: deletedProduct.name, // Return some identifying info about the deleted product
-        },
-      });
-    } catch (error) {
-      const customizedError = handleErrors(error);
-      return ctx.send(
-        { success: false, message: customizedError.message },
-        handleStatusCode(error) || 500
-      );
-    }
-  },
-
-//MARK:FILTER PRODUCTS
-
-
+  /**
+   * List all products with filtering, searching, sorting, and pagination.
+   * Populates all relevant relations.
+   */
   async find(ctx) {
     try {
       const { query } = ctx; // Access query parameters
       let filters = {};
       let sort = [];
+      // Populate all relations using their plural names as per your schema
       let populate = [
         'image',
         'category',
-        'brand', // New population
-        'frameMaterial', // New population
-        'frameShape', // New population
-        'lensType', // New population
-        'lensCoating', // New population
-        'lensThickness', // New population
-        'frameWeight', // New population
-        'storeAddress' // New population
+        'lens_types',
+        'lens_coatings',
+        'frame_weights',
+        'brands',
+        'frame_materials',
+        'frame_shapes',
+        'lens_thicknesses',
+        'frame_sizes'
       ];
 
       // --- 1. Search (using '_q' for fuzzy search across specified fields) ---
@@ -185,22 +235,26 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
         filters.$or = [
           { name: { $containsi: query._q } },
           { description: { $containsi: query._q } },
-          { color: { $containsi: query._q } }, // Search by color
-          { size: { $containsi: query._q } }, // Search by size
-          { brand: { name: { $containsi: query._q } } }, // Search by brand name
-          { frameMaterial: { name: { $containsi: query._q } } }, // Search by frame material name
-          { frameShape: { name: { $containsi: query._q } } }, // Search by frame shape name
-          { lensType: { name: { $containsi: query._q } } }, // Search by lens type name
-          { lensCoating: { name: { $containsi: query._q } } }, // Search by lens coating name
-          { lensThickness: { name: { $containsi: query._q } } }, // Search by lens thickness name
-          { frameWeight: { name: { $containsi: query._q } } } // Search by frame weight name
+          { color: { $containsi: query._q } },
+          // Search by related content type's name field (assuming they have a 'name' attribute)
+          // Note: Filtering oneToMany relations by nested fields like 'name' can be complex
+          // and might require custom query logic or specific database indexing depending on Strapi's ORM.
+          // Filtering by ID (e.g., ?brands_id=1) is generally more direct for oneToMany.
+          { brands: { name: { $containsi: query._q } } },
+          { frame_materials: { name: { $containsi: query._q } } },
+          { frame_shapes: { name: { $containsi: query._q } } },
+          { lens_types: { name: { $containsi: query._q } } },
+          { lens_coatings: { name: { $containsi: query._q } } },
+          { lens_thicknesses: { name: { $containsi: query._q } } },
+          { frame_weights: { name: { $containsi: query._q } } },
+          { frame_sizes: { name: { $containsi: query._q } } }
         ];
         delete query._q; // Remove _q from the direct query to prevent conflicts
       }
 
       // --- 2. Filtering ---
 
-      // Price Range (existing)
+      // Price Range
       if (query.price_gte) {
         filters.price = { ...filters.price, $gte: parseFloat(query.price_gte) };
         delete query.price_gte;
@@ -210,7 +264,7 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
         delete query.price_lte;
       }
 
-      // Offer Price Range (New)
+      // Offer Price Range (if you add this field to your schema)
       if (query.offerPrice_gte) {
         filters.offerPrice = { ...filters.offerPrice, $gte: parseFloat(query.offerPrice_gte) };
         delete query.offerPrice_gte;
@@ -220,74 +274,62 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
         delete query.offerPrice_lte;
       }
 
-      // Availability (inStock - Boolean field) (existing)
+      // Availability (inStock - Boolean field)
       if (query.inStock !== undefined) {
         filters.inStock = query.inStock === 'true';
         delete query.inStock;
       }
 
-      // Category (by name) (existing)
+      // Category (by name)
       if (query.category) {
         filters.category = { name: { $eqi: query.category } };
         delete query.category;
       }
 
-      // Color (Text field on Product) (existing)
+      // Color (Text field on Product)
       if (query.color) {
         filters.color = { $eqi: query.color }; // Case-insensitive exact match for color
         delete query.color;
       }
 
-      // Brand (by name of the related Brand) (New)
-      if (query.brand) {
-        filters.brand = { name: { $eqi: query.brand } };
-        delete query.brand;
+      // Filter by related content type's name (plural field names as per your schema)
+      // Note: Filtering oneToMany relations by nested fields like 'name' can be complex
+      // and might require custom query logic or specific database indexing depending on Strapi's ORM.
+      // Filtering by ID (e.g., ?brands_id=1) is generally more direct for oneToMany.
+      if (query.brands) {
+        filters.brands = { name: { $eqi: query.brands } };
+        delete query.brands;
+      }
+      if (query.frame_materials) {
+        filters.frame_materials = { name: { $eqi: query.frame_materials } };
+        delete query.frame_materials;
+      }
+      if (query.frame_shapes) {
+        filters.frame_shapes = { name: { $eqi: query.frame_shapes } };
+        delete query.frame_shapes;
+      }
+      if (query.lens_types) {
+        filters.lens_types = { name: { $eqi: query.lens_types } };
+        delete query.lens_types;
+      }
+      if (query.lens_coatings) {
+        filters.lens_coatings = { name: { $eqi: query.lens_coatings } };
+        delete query.lens_coatings;
+      }
+      if (query.lens_thicknesses) {
+        filters.lens_thicknesses = { name: { $eqi: query.lens_thicknesses } };
+        delete query.lens_thicknesses;
+      }
+      if (query.frame_weights) {
+        filters.frame_weights = { name: { $eqi: query.frame_weights } };
+        delete query.frame_weights;
+      }
+      if (query.frame_sizes) {
+        filters.frame_sizes = { name: { $eqi: query.frame_sizes } };
+        delete query.frame_sizes;
       }
 
-      // Frame Material (by name of the related FrameMaterial) (New)
-      if (query.frameMaterial) {
-        filters.frameMaterial = { name: { $eqi: query.frameMaterial } };
-        delete query.frameMaterial;
-      }
-
-      // Frame Shape (by name of the related FrameShape) (New)
-      if (query.frameShape) {
-        filters.frameShape = { name: { $eqi: query.frameShape } };
-        delete query.frameShape;
-      }
-
-      // Lens Type (by name of the related LensType) (New)
-      if (query.lensType) {
-        filters.lensType = { name: { $eqi: query.lensType } };
-        delete query.lensType;
-      }
-
-      // Lens Coating (by name of the related LensCoating) (New)
-      if (query.lensCoating) {
-        filters.lensCoating = { name: { $eqi: query.lensCoating } };
-        delete query.lensCoating;
-      }
-
-      // Lens Thickness (by name of the related LensThickness) (New)
-      if (query.lensThickness) {
-        filters.lensThickness = { name: { $eqi: query.lensThickness } };
-        delete query.lensThickness;
-      }
-
-      // Frame Weight (by name of the related FrameWeight) (New)
-      if (query.frameWeight) {
-        filters.frameWeight = { name: { $eqi: query.frameWeight } };
-        delete query.frameWeight;
-      }
-
-      // Frame Size (direct string match on 'size' field) (New)
-      // This will allow filtering by exact size string, e.g., ?frameSize=52-18-140
-      if (query.frameSize) {
-        filters.size = { $eqi: query.frameSize };
-        delete query.frameSize;
-      }
-
-      // Rating (gte) (New)
+      // Rating (gte) (if you add this field to your schema)
       if (query.rating_gte) {
         filters.rating = { ...filters.rating, $gte: parseFloat(query.rating_gte) };
         delete query.rating_gte;
@@ -298,7 +340,7 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
         const sortParams = Array.isArray(query._sort) ? query._sort : [query._sort];
         sort = sortParams.map(s => {
           const [field, order] = s.split(':');
-          // Handle sorting by relation names if needed, e.g., 'brand.name:asc'
+          // Handle sorting by relation names if needed, e.g., 'brands.name:asc'
           if (field.includes('.')) {
             const [relation, subField] = field.split('.');
             return { [relation]: { [subField]: order.toLowerCase() } };
@@ -333,7 +375,7 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
       // Sanitize the output to remove sensitive fields if any (though not expected for products)
       const sanitizedProducts = await Promise.all(
         products.map((product) =>
-          sanitize.contentAPI.output(product, strapi.contentType('api::product.product'))
+          strapiUtils.sanitize.contentAPI.output(product, strapi.contentType('api::product.product'))
         )
       );
 
@@ -359,122 +401,149 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
     }
   },
 
+  /**
+   * Update an existing product.
+   * Allows updating product details and its relations (expects arrays of IDs for oneToMany).
+   * PUT /api/products/:id
+   */
+  async update(ctx) {
+    try {
+      const { id } = ctx.params; // Product ID from URL parameters
+      const requestData = ctx.request.body.data || ctx.request.body; // Strapi v4 wraps body in 'data'
+
+      // Check if the product exists
+      const existingProduct = await strapi.entityService.findOne(
+        "api::product.product",
+        id
+      );
+
+      if (!existingProduct) {
+        throw new NotFoundError("Product not found.");
+      }
+
+      // Validate existence of related entities for manyToOne (category)
+      if (requestData.category !== undefined) {
+          if (Array.isArray(requestData.category)) {
+              throw new ValidationError("Category must be a single ID, not an array.");
+          }
+          const categoryEntity = await strapi.entityService.findOne("api::category.category", requestData.category);
+          if (!categoryEntity) {
+              throw new NotFoundError("Provided category not found.");
+          }
+      }
+
+      // Validate existence of related entities for oneToMany relations (expect arrays of IDs)
+      const validateOneToManyRelationIds = async (target, ids, fieldName) => {
+        if (ids !== undefined && ids !== null) { // Allow empty array or null/undefined if not required
+            if (!Array.isArray(ids)) {
+                throw new ValidationError(`${fieldName} must be an array of IDs.`);
+            }
+            for (const id of ids) {
+                if (typeof id !== 'number' && typeof id !== 'string') { // IDs can be numbers or strings
+                    throw new ValidationError(`Invalid ID type in ${fieldName} array.`);
+                }
+                const entity = await strapi.entityService.findOne(target, id);
+                if (!entity) {
+                    throw new NotFoundError(`Provided ${fieldName} ID ${id} not found.`);
+                }
+            }
+        }
+      };
+
+      if (requestData.lens_types !== undefined) await validateOneToManyRelationIds("api::lens-type.lens-type", requestData.lens_types, "lens_types");
+      if (requestData.lens_coatings !== undefined) await validateOneToManyRelationIds("api::lens-coating.lens-coating", requestData.lens_coatings, "lens_coatings");
+      if (requestData.frame_weights !== undefined) await validateOneToManyRelationIds("api::frame-weight.frame-weight", requestData.frame_weights, "frame_weights");
+      if (requestData.brands !== undefined) await validateOneToManyRelationIds("api::brand.brand", requestData.brands, "brands");
+      if (requestData.frame_materials !== undefined) await validateOneToManyRelationIds("api::frame-material.frame-material", requestData.frame_materials, "frame_materials");
+      if (requestData.frame_shapes !== undefined) await validateOneToManyRelationIds("api::frame-shape.frame-shape", requestData.frame_shapes, "frame_shapes");
+      if (requestData.lens_thicknesses !== undefined) await validateOneToManyRelationIds("api::lens-thickness.lens-thickness", requestData.lens_thicknesses, "lens_thicknesses");
+      if (requestData.frame_sizes !== undefined) await validateOneToManyRelationIds("api::frame-size.frame-size", requestData.frame_sizes, "frame_sizes");
 
 
+      // Update the product
+      const updatedProduct = await strapi.entityService.update(
+        "api::product.product",
+        id,
+        {
+          data: requestData, // Pass the entire request data (Strapi handles updates to relations by ID/array of IDs)
+          populate: [
+            "image",
+            "category",
+            "lens_types",
+            "lens_coatings",
+            "frame_weights",
+            "brands",
+            "frame_materials",
+            "frame_shapes",
+            "lens_thicknesses",
+            "frame_sizes",
+            "wishlistedByUsers"
+          ],
+        }
+      );
 
+      // Sanitize the output
+      const sanitizedProduct = await strapiUtils.sanitize.contentAPI.output(updatedProduct, strapi.contentType('api::product.product'));
 
+      return ctx.send({
+        success: true,
+        message: "Product updated successfully.",
+        data: sanitizedProduct,
+      });
+    } catch (error) {
+      const customizedError = handleErrors(error);
+      return ctx.send(
+        { success: false, message: customizedError.message },
+        handleStatusCode(error) || 500
+      );
+    }
+  },
 
+  /**
+   * Delete an existing product.
+   * DELETE /api/products/:id
+   */
+  async delete(ctx) {
+    try {
+      const { id } = ctx.params; // Product ID from URL parameters
 
+      // Check if the product exists
+      const existingProduct = await strapi.entityService.findOne(
+        "api::product.product",
+        id
+      );
 
-// async find(ctx) {
-//         try {
-//             const { query } = ctx; // Access query parameters
-//             let filters = {};
-//             let sort = [];
-//             let populate = ['image', 'category']; // Populate image and category relation for filtering
+      if (!existingProduct) {
+        throw new NotFoundError("Product not found.");
+      }
 
-//             // --- 1. Search (using '_q' for fuzzy search across specified fields) ---
-//             if (query._q) {
-//                 // Apply search across 'name' and 'description' fields
-//                 filters.$or = [
-//                     { name: { $containsi: query._q } },
-//                     { description: { $containsi: query._q } },
-//                 ];
-//                 delete query._q; // Remove _q from the direct query to prevent conflicts
-//             }
+      // Strapi's entityService.delete for many-to-many relations like 'wishlistedByUsers'
+      // will automatically handle disconnecting the product from users' wishlists.
+      // For oneToMany relations like brands, lens_types, etc., deleting the product
+      // will NOT automatically delete the related brand/lens_type entries.
+      // It will simply remove the link from the product to those entities.
 
-//             // --- 2. Filtering ---
+      const deletedProduct = await strapi.entityService.delete(
+        "api::product.product",
+        id
+      );
 
-//             // Price Range
-//             if (query.price_gte) {
-//                 filters.price = { ...filters.price, $gte: parseFloat(query.price_gte) };
-//                 delete query.price_gte;
-//             }
-//             if (query.price_lte) {
-//                 filters.price = { ...filters.price, $lte: parseFloat(query.price_lte) };
-//                 delete query.price_lte;
-//             }
-
-//             // Availability (inStock - Boolean field)
-//             if (query.inStock !== undefined) {
-//                 // Convert string "true" / "false" from URL to boolean
-//                 filters.inStock = query.inStock === 'true';
-//                 delete query.inStock;
-//             }
-
-//             // Category (assuming your Category content type has a 'name' field)
-//             if (query.category) {
-//                 // Filter by the name of the related category
-//                 filters.category = { name: { $eqi: query.category } };
-//                 delete query.category;
-//             }
-
-//             // Color (Text field on Product)
-//             if (query.color) {
-//                 // Case-insensitive exact match for color
-//                 filters.color = { $eqi: query.color };
-//                 delete query.color;
-//             }
-
-//             // --- 3. Sorting ---
-//             if (query._sort) {
-//                 // Example: _sort=price:asc,name:desc
-//                 // Supports multiple sort criteria separated by commas
-//                 const sortParams = Array.isArray(query._sort) ? query._sort : [query._sort];
-//                 sort = sortParams.map(s => {
-//                     const [field, order] = s.split(':');
-//                     return { [field]: order.toLowerCase() };
-//                 });
-//                 delete query._sort;
-//             } else {
-//                 // Default sorting: Newest arrivals (using Strapi's default 'createdAt' field)
-//                 sort.push({ createdAt: 'desc' });
-//             }
-
-//             // --- 4. Pagination ---
-//             // Extract pagination parameters
-//             const page = parseInt(query.page || 1);
-//             const pageSize = parseInt(query.pageSize || 10);
-//             const start = (page - 1) * pageSize; // Calculate offset for pagination
-//             const limit = pageSize;
-
-//             // --- Construct final query options for entityService.findMany ---
-//             const findOptions = {
-//                 filters: filters,
-//                 sort: sort,
-//                 populate: populate,
-//                 start: start, // Offset for pagination
-//                 limit: limit, // Limit for pagination
-//             };
-
-//             // Fetch products and total count separately for pagination metadata
-//             const products = await strapi.entityService.findMany("api::product.product", findOptions);
-//             const total = await strapi.entityService.count("api::product.product", { filters: filters });
-
-//             // Return response with data and pagination metadata
-//             ctx.body = {
-//                 data: products,
-//                 meta: {
-//                     pagination: {
-//                         page: page,
-//                         pageSize: limit,
-//                         pageCount: Math.ceil(total / limit),
-//                         total: total,
-//                     },
-//                 },
-//             };
-
-//         } catch (error) {
-//             const customizedError = handleErrors(error); // Using your existing error handler
-//             return ctx.send(
-//                 { success: false, message: customizedError.message },
-//                 handleStatusCode(error) || 500 // Using your existing status code handler
-//             );
-//         }
-//     },
-
-
-
+      return ctx.send({
+        success: true,
+        message: "Product deleted successfully.",
+        data: {
+          id: deletedProduct.id,
+          name: deletedProduct.name, // Return some identifying info about the deleted product
+        },
+      });
+    } catch (error) {
+      const customizedError = handleErrors(error);
+      return ctx.send(
+        { success: false, message: customizedError.message },
+        handleStatusCode(error) || 500
+      );
+    }
+  },
 
 //MARK:ADD WHISHLIST
   async addToWishlist(ctx) {

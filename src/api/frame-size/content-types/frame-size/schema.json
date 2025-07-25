@@ -1,10 +1,10 @@
 {
   "kind": "collectionType",
-  "collectionName": "subcategories",
+  "collectionName": "frame_sizes",
   "info": {
-    "singularName": "subcategory",
-    "pluralName": "subcategories",
-    "displayName": "Subcategory"
+    "singularName": "frame-size",
+    "pluralName": "frame-sizes",
+    "displayName": "Frame Size"
   },
   "options": {
     "draftAndPublish": true

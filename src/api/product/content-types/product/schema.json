@@ -58,23 +58,45 @@
     "salesCount": {
       "type": "integer"
     },
-    "lensType": {
+    "lens_types": {
       "type": "relation",
-      "relation": "manyToOne",
-      "target": "api::product-lens-type.product-lens-type",
-      "inversedBy": "products"
+      "relation": "oneToMany",
+      "target": "api::lens-type.lens-type"
     },
-    "lensCoating": {
+    "lens_coatings": {
       "type": "relation",
-      "relation": "manyToOne",
-      "target": "api::product-lens-coating.product-lens-coating",
-      "inversedBy": "products"
+      "relation": "oneToMany",
+      "target": "api::lens-coating.lens-coating"
     },
-    "frameWeight": {
+    "frame_weights": {
       "type": "relation",
-      "relation": "manyToOne",
-      "target": "api::product-frame-weight.product-frame-weight",
-      "inversedBy": "products"
+      "relation": "oneToMany",
+      "target": "api::frame-weight.frame-weight"
+    },
+    "brands": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::brand.brand"
+    },
+    "frame_materials": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::frame-material.frame-material"
+    },
+    "frame_shapes": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::frame-shape.frame-shape"
+    },
+    "lens_thicknesses": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::lens-thickness.lens-thickness"
+    },
+    "frame_sizes": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::frame-size.frame-size"
     }
   }
 }

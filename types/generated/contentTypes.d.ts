@@ -365,6 +365,7 @@ export interface AdminUser extends Schema.CollectionType {
 export interface ApiAddressAddress extends Schema.CollectionType {
   collectionName: 'addresses';
   info: {
+    description: '';
     displayName: 'Address';
     pluralName: 'addresses';
     singularName: 'address';
@@ -373,6 +374,8 @@ export interface ApiAddressAddress extends Schema.CollectionType {
     draftAndPublish: true;
   };
   attributes: {
+    address_name: Attribute.String;
+    box_number: Attribute.String;
     country_name: Attribute.String;
     createdAt: Attribute.DateTime;
     createdBy: Attribute.Relation<
@@ -381,11 +384,19 @@ export interface ApiAddressAddress extends Schema.CollectionType {
       'admin::user'
     > &
       Attribute.Private;
+    home_work: Attribute.Enumeration<['Home', 'Work', 'Other']>;
+    is_default: Attribute.Boolean &
+      Attribute.Required &
+      Attribute.DefaultTo<false>;
     locality_name: Attribute.String;
-    name: Attribute.String;
-    phone: Attribute.Integer;
+    phone: Attribute.String &
+      Attribute.CustomField<
+        'plugin::strapi-phone-validator.phone',
+        {
+          country: 'in';
+        }
+      >;
     publishedAt: Attribute.DateTime;
-    street: Attribute.String;
     updatedAt: Attribute.DateTime;
     updatedBy: Attribute.Relation<
       'api::address.address',
@@ -393,7 +404,11 @@ export interface ApiAddressAddress extends Schema.CollectionType {
       'admin::user'
     > &
       Attribute.Private;
-    zip_code: Attribute.Integer;
+    user: Attribute.Relation<
+      'api::address.address',
+      'manyToOne',
+      'plugin::users-permissions.user'
+    >;
   };
 }
 
@@ -417,11 +432,6 @@ export interface ApiBrandBrand extends Schema.CollectionType {
     > &
       Attribute.Private;
     name: Attribute.String & Attribute.Required & Attribute.Unique;
-    products: Attribute.Relation<
-      'api::brand.brand',
-      'oneToMany',
-      'api::product.product'
-    >;
     publishedAt: Attribute.DateTime;
     updatedAt: Attribute.DateTime;
     updatedBy: Attribute.Relation<
@@ -469,6 +479,7 @@ export interface ApiCartCart extends Schema.CollectionType {
 export interface ApiCategoryCategory extends Schema.CollectionType {
   collectionName: 'categories';
   info: {
+    description: '';
     displayName: 'Category';
     pluralName: 'categories';
     singularName: 'category';
@@ -491,11 +502,6 @@ export interface ApiCategoryCategory extends Schema.CollectionType {
       'api::product.product'
     >;
     publishedAt: Attribute.DateTime;
-    subCategories: Attribute.Relation<
-      'api::category.category',
-      'oneToMany',
-      'api::subcategory.subcategory'
-    >;
     updatedAt: Attribute.DateTime;
     updatedBy: Attribute.Relation<
       'api::category.category',
@@ -526,11 +532,6 @@ export interface ApiFrameMaterialFrameMaterial extends Schema.CollectionType {
     > &
       Attribute.Private;
     name: Attribute.String & Attribute.Required & Attribute.Unique;
-    products: Attribute.Relation<
-      'api::frame-material.frame-material',
-      'oneToMany',
-      'api::product.product'
-    >;
     publishedAt: Attribute.DateTime;
     updatedAt: Attribute.DateTime;
     updatedBy: Attribute.Relation<
@@ -562,15 +563,102 @@ export interface ApiFrameShapeFrameShape extends Schema.CollectionType {
     > &
       Attribute.Private;
     name: Attribute.String & Attribute.Required & Attribute.Unique;
-    products: Attribute.Relation<
-      'api::frame-shape.frame-shape',
-      'oneToMany',
-      'api::product.product'
-    >;
     publishedAt: Attribute.DateTime;
     updatedAt: Attribute.DateTime;
     updatedBy: Attribute.Relation<
       'api::frame-shape.frame-shape',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+  };
+}
+
+export interface ApiFrameSizeFrameSize extends Schema.CollectionType {
+  collectionName: 'frame_sizes';
+  info: {
+    displayName: 'Frame Size';
+    pluralName: 'frame-sizes';
+    singularName: 'frame-size';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::frame-size.frame-size',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    name: Attribute.String;
+    publishedAt: Attribute.DateTime;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::frame-size.frame-size',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+  };
+}
+
+export interface ApiFrameWeightFrameWeight extends Schema.CollectionType {
+  collectionName: 'frame_weights';
+  info: {
+    description: '';
+    displayName: 'Frame Weight';
+    pluralName: 'frame-weights';
+    singularName: 'frame-weight';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::frame-weight.frame-weight',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    name: Attribute.String & Attribute.Required & Attribute.Unique;
+    publishedAt: Attribute.DateTime;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::frame-weight.frame-weight',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+  };
+}
+
+export interface ApiLensCoatingLensCoating extends Schema.CollectionType {
+  collectionName: 'lens_coatings';
+  info: {
+    description: '';
+    displayName: 'Lens Coating';
+    pluralName: 'lens-coatings';
+    singularName: 'lens-coating';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::lens-coating.lens-coating',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    name: Attribute.String & Attribute.Required & Attribute.Unique;
+    publishedAt: Attribute.DateTime;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::lens-coating.lens-coating',
       'oneToOne',
       'admin::user'
     > &
@@ -598,15 +686,41 @@ export interface ApiLensThicknessLensThickness extends Schema.CollectionType {
     > &
       Attribute.Private;
     name: Attribute.String & Attribute.Required & Attribute.Unique;
-    products: Attribute.Relation<
-      'api::lens-thickness.lens-thickness',
-      'oneToMany',
-      'api::product.product'
-    >;
     publishedAt: Attribute.DateTime;
     updatedAt: Attribute.DateTime;
     updatedBy: Attribute.Relation<
       'api::lens-thickness.lens-thickness',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+  };
+}
+
+export interface ApiLensTypeLensType extends Schema.CollectionType {
+  collectionName: 'lens_types';
+  info: {
+    description: '';
+    displayName: 'Lens Type';
+    pluralName: 'lens-types';
+    singularName: 'lens-type';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::lens-type.lens-type',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    name: Attribute.String & Attribute.Required & Attribute.Unique;
+    publishedAt: Attribute.DateTime;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::lens-type.lens-type',
       'oneToOne',
       'admin::user'
     > &
@@ -661,117 +775,6 @@ export interface ApiOrderOrder extends Schema.CollectionType {
   };
 }
 
-export interface ApiProductFrameWeightProductFrameWeight
-  extends Schema.CollectionType {
-  collectionName: 'frame_weights';
-  info: {
-    description: '';
-    displayName: 'Frame Weight';
-    pluralName: 'product-frame-weights';
-    singularName: 'product-frame-weight';
-  };
-  options: {
-    draftAndPublish: true;
-  };
-  attributes: {
-    createdAt: Attribute.DateTime;
-    createdBy: Attribute.Relation<
-      'api::product-frame-weight.product-frame-weight',
-      'oneToOne',
-      'admin::user'
-    > &
-      Attribute.Private;
-    name: Attribute.String & Attribute.Required & Attribute.Unique;
-    products: Attribute.Relation<
-      'api::product-frame-weight.product-frame-weight',
-      'oneToMany',
-      'api::product.product'
-    >;
-    publishedAt: Attribute.DateTime;
-    updatedAt: Attribute.DateTime;
-    updatedBy: Attribute.Relation<
-      'api::product-frame-weight.product-frame-weight',
-      'oneToOne',
-      'admin::user'
-    > &
-      Attribute.Private;
-  };
-}
-
-export interface ApiProductLensCoatingProductLensCoating
-  extends Schema.CollectionType {
-  collectionName: 'lens_coatings';
-  info: {
-    description: '';
-    displayName: 'Lens Coating';
-    pluralName: 'product-lens-coatings';
-    singularName: 'product-lens-coating';
-  };
-  options: {
-    draftAndPublish: true;
-  };
-  attributes: {
-    createdAt: Attribute.DateTime;
-    createdBy: Attribute.Relation<
-      'api::product-lens-coating.product-lens-coating',
-      'oneToOne',
-      'admin::user'
-    > &
-      Attribute.Private;
-    name: Attribute.String & Attribute.Required & Attribute.Unique;
-    products: Attribute.Relation<
-      'api::product-lens-coating.product-lens-coating',
-      'oneToMany',
-      'api::product.product'
-    >;
-    publishedAt: Attribute.DateTime;
-    updatedAt: Attribute.DateTime;
-    updatedBy: Attribute.Relation<
-      'api::product-lens-coating.product-lens-coating',
-      'oneToOne',
-      'admin::user'
-    > &
-      Attribute.Private;
-  };
-}
-
-export interface ApiProductLensTypeProductLensType
-  extends Schema.CollectionType {
-  collectionName: 'lens_types';
-  info: {
-    description: '';
-    displayName: 'Lens Type';
-    pluralName: 'product-lens-types';
-    singularName: 'product-lens-type';
-  };
-  options: {
-    draftAndPublish: true;
-  };
-  attributes: {
-    createdAt: Attribute.DateTime;
-    createdBy: Attribute.Relation<
-      'api::product-lens-type.product-lens-type',
-      'oneToOne',
-      'admin::user'
-    > &
-      Attribute.Private;
-    name: Attribute.String & Attribute.Required & Attribute.Unique;
-    products: Attribute.Relation<
-      'api::product-lens-type.product-lens-type',
-      'oneToMany',
-      'api::product.product'
-    >;
-    publishedAt: Attribute.DateTime;
-    updatedAt: Attribute.DateTime;
-    updatedBy: Attribute.Relation<
-      'api::product-lens-type.product-lens-type',
-      'oneToOne',
-      'admin::user'
-    > &
-      Attribute.Private;
-  };
-}
-
 export interface ApiProductProduct extends Schema.CollectionType {
   collectionName: 'products';
   info: {
@@ -784,6 +787,11 @@ export interface ApiProductProduct extends Schema.CollectionType {
     draftAndPublish: true;
   };
   attributes: {
+    brands: Attribute.Relation<
+      'api::product.product',
+      'oneToMany',
+      'api::brand.brand'
+    >;
     category: Attribute.Relation<
       'api::product.product',
       'manyToOne',
@@ -798,22 +806,42 @@ export interface ApiProductProduct extends Schema.CollectionType {
     > &
       Attribute.Private;
     description: Attribute.Text;
-    frameWeight: Attribute.Relation<
+    frame_materials: Attribute.Relation<
       'api::product.product',
-      'manyToOne',
-      'api::product-frame-weight.product-frame-weight'
+      'oneToMany',
+      'api::frame-material.frame-material'
+    >;
+    frame_shapes: Attribute.Relation<
+      'api::product.product',
+      'oneToMany',
+      'api::frame-shape.frame-shape'
+    >;
+    frame_sizes: Attribute.Relation<
+      'api::product.product',
+      'oneToMany',
+      'api::frame-size.frame-size'
+    >;
+    frame_weights: Attribute.Relation<
+      'api::product.product',
+      'oneToMany',
+      'api::frame-weight.frame-weight'
     >;
     image: Attribute.Media<'images' | 'files' | 'videos' | 'audios'>;
     inStock: Attribute.Boolean;
-    lensCoating: Attribute.Relation<
+    lens_coatings: Attribute.Relation<
       'api::product.product',
-      'manyToOne',
-      'api::product-lens-coating.product-lens-coating'
+      'oneToMany',
+      'api::lens-coating.lens-coating'
     >;
-    lensType: Attribute.Relation<
+    lens_thicknesses: Attribute.Relation<
       'api::product.product',
-      'manyToOne',
-      'api::product-lens-type.product-lens-type'
+      'oneToMany',
+      'api::lens-thickness.lens-thickness'
+    >;
+    lens_types: Attribute.Relation<
+      'api::product.product',
+      'oneToMany',
+      'api::lens-type.lens-type'
     >;
     name: Attribute.String;
     orders: Attribute.Relation<
@@ -850,11 +878,6 @@ export interface ApiSubcategorySubcategory extends Schema.CollectionType {
     draftAndPublish: true;
   };
   attributes: {
-    category: Attribute.Relation<
-      'api::subcategory.subcategory',
-      'manyToOne',
-      'api::category.category'
-    >;
     createdAt: Attribute.DateTime;
     createdBy: Attribute.Relation<
       'api::subcategory.subcategory',
@@ -1257,6 +1280,11 @@ export interface PluginUsersPermissionsUser extends Schema.CollectionType {
     timestamps: true;
   };
   attributes: {
+    addresses: Attribute.Relation<
+      'plugin::users-permissions.user',
+      'oneToMany',
+      'api::address.address'
+    >;
     blocked: Attribute.Boolean & Attribute.DefaultTo<false>;
     confirmationToken: Attribute.String & Attribute.Private;
     confirmed: Attribute.Boolean & Attribute.DefaultTo<false>;
@@ -1289,7 +1317,14 @@ export interface PluginUsersPermissionsUser extends Schema.CollectionType {
       Attribute.SetMinMaxLength<{
         minLength: 6;
       }>;
-    phone: Attribute.String & Attribute.Required & Attribute.Unique;
+    phone: Attribute.String &
+      Attribute.Unique &
+      Attribute.CustomField<
+        'plugin::strapi-phone-validator.phone',
+        {
+          country: 'in';
+        }
+      >;
     profileImage: Attribute.Media<'images'>;
     provider: Attribute.String;
     resetPasswordToken: Attribute.String & Attribute.Private;
@@ -1325,11 +1360,12 @@ declare module '@strapi/types' {
       'api::category.category': ApiCategoryCategory;
       'api::frame-material.frame-material': ApiFrameMaterialFrameMaterial;
       'api::frame-shape.frame-shape': ApiFrameShapeFrameShape;
+      'api::frame-size.frame-size': ApiFrameSizeFrameSize;
+      'api::frame-weight.frame-weight': ApiFrameWeightFrameWeight;
+      'api::lens-coating.lens-coating': ApiLensCoatingLensCoating;
       'api::lens-thickness.lens-thickness': ApiLensThicknessLensThickness;
+      'api::lens-type.lens-type': ApiLensTypeLensType;
       'api::order.order': ApiOrderOrder;
-      'api::product-frame-weight.product-frame-weight': ApiProductFrameWeightProductFrameWeight;
-      'api::product-lens-coating.product-lens-coating': ApiProductLensCoatingProductLensCoating;
-      'api::product-lens-type.product-lens-type': ApiProductLensTypeProductLensType;
       'api::product.product': ApiProductProduct;
       'api::subcategory.subcategory': ApiSubcategorySubcategory;
       'plugin::content-releases.release': PluginContentReleasesRelease;

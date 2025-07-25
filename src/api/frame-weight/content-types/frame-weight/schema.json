@@ -1,10 +1,10 @@
 {
   "kind": "collectionType",
-  "collectionName": "brands",
+  "collectionName": "frame_weights",
   "info": {
-    "singularName": "brand",
-    "pluralName": "brands",
-    "displayName": "Brand",
+    "singularName": "frame-weight",
+    "pluralName": "frame-weights",
+    "displayName": "Frame Weight",
     "description": ""
   },
   "options": {

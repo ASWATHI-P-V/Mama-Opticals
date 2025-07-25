@@ -1,10 +1,10 @@
 {
   "kind": "collectionType",
-  "collectionName": "brands",
+  "collectionName": "lens_coatings",
   "info": {
-    "singularName": "brand",
-    "pluralName": "brands",
-    "displayName": "Brand",
+    "singularName": "lens-coating",
+    "pluralName": "lens-coatings",
+    "displayName": "Lens Coating",
     "description": ""
   },
   "options": {

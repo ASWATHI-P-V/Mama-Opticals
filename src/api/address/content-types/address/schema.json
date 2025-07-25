@@ -4,18 +4,24 @@
   "info": {
     "singularName": "address",
     "pluralName": "addresses",
-    "displayName": "Address"
+    "displayName": "Address",
+    "description": ""
   },
   "options": {
     "draftAndPublish": true
   },
   "pluginOptions": {},
   "attributes": {
-    "name": {
+    "address_name": {
       "type": "string"
     },
     "phone": {
-      "type": "integer"
+      "type": "customField",
+      "customField": "plugin::strapi-phone-validator.phone",
+      "options": {
+        "country": "in"
+      },
+      "configurable": false
     },
     "locality_name": {
       "type": "string"
@@ -23,11 +29,28 @@
     "country_name": {
       "type": "string"
     },
-    "street": {
-      "type": "string"
+    "home_work": {
+      "type": "enumeration",
+      "enum": ["Home", "Work", "Other"],
+      "required": false,
+      "description": "Type of address (Home, Work, Other)"
     },
-    "zip_code": {
-      "type": "integer"
+    "box_number": {
+      "type": "string",
+      "required": false,
+      "description": "Apartment, suite, unit, or P.O. box number"
+    },
+    "is_default": {
+      "type": "boolean",
+      "default": false,
+      "required": true,
+      "description": "Indicates if this is the user's default address"
+    },
+    "user": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user",
+      "inversedBy": "addresses"
     }
   }
 }
