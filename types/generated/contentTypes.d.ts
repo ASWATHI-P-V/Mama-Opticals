@@ -844,6 +844,8 @@ export interface ApiProductProduct extends Schema.CollectionType {
       'api::lens-type.lens-type'
     >;
     name: Attribute.String;
+    offerPrice: Attribute.Decimal;
+    offers: Attribute.Text;
     orders: Attribute.Relation<
       'api::product.product',
       'manyToMany',
@@ -851,7 +853,38 @@ export interface ApiProductProduct extends Schema.CollectionType {
     >;
     price: Attribute.Integer;
     publishedAt: Attribute.DateTime;
+    rating: Attribute.Decimal &
+      Attribute.SetMinMax<
+        {
+          max: 5;
+          min: 0;
+        },
+        number
+      > &
+      Attribute.DefaultTo<0>;
+    reviewCount: Attribute.Integer &
+      Attribute.SetMinMax<
+        {
+          min: 0;
+        },
+        number
+      > &
+      Attribute.DefaultTo<0>;
+    reviews: Attribute.Relation<
+      'api::product.product',
+      'oneToMany',
+      'api::review.review'
+    >;
     salesCount: Attribute.Integer;
+    stock: Attribute.Integer &
+      Attribute.Required &
+      Attribute.SetMinMax<
+        {
+          min: 0;
+        },
+        number
+      > &
+      Attribute.DefaultTo<0>;
     updatedAt: Attribute.DateTime;
     updatedBy: Attribute.Relation<
       'api::product.product',
@@ -864,6 +897,60 @@ export interface ApiProductProduct extends Schema.CollectionType {
       'oneToMany',
       'plugin::users-permissions.user'
     >;
+  };
+}
+
+export interface ApiReviewReview extends Schema.CollectionType {
+  collectionName: 'reviews';
+  info: {
+    displayName: 'Review';
+    pluralName: 'reviews';
+    singularName: 'review';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    comment: Attribute.Text &
+      Attribute.SetMinMaxLength<{
+        maxLength: 500;
+      }>;
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::review.review',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    product: Attribute.Relation<
+      'api::review.review',
+      'manyToOne',
+      'api::product.product'
+    > &
+      Attribute.Required;
+    publishedAt: Attribute.DateTime;
+    rating: Attribute.Integer &
+      Attribute.Required &
+      Attribute.SetMinMax<
+        {
+          max: 5;
+          min: 1;
+        },
+        number
+      >;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::review.review',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    user: Attribute.Relation<
+      'api::review.review',
+      'manyToOne',
+      'plugin::users-permissions.user'
+    > &
+      Attribute.Required;
   };
 }
 
@@ -1328,6 +1415,11 @@ export interface PluginUsersPermissionsUser extends Schema.CollectionType {
     profileImage: Attribute.Media<'images'>;
     provider: Attribute.String;
     resetPasswordToken: Attribute.String & Attribute.Private;
+    reviews: Attribute.Relation<
+      'plugin::users-permissions.user',
+      'oneToMany',
+      'api::review.review'
+    >;
     role: Attribute.Relation<
       'plugin::users-permissions.user',
       'manyToOne',
@@ -1367,6 +1459,7 @@ declare module '@strapi/types' {
       'api::lens-type.lens-type': ApiLensTypeLensType;
       'api::order.order': ApiOrderOrder;
       'api::product.product': ApiProductProduct;
+      'api::review.review': ApiReviewReview;
       'api::subcategory.subcategory': ApiSubcategorySubcategory;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;

@@ -1,46 +1,55 @@
 "use strict";
 
 const { createCoreController } = require("@strapi/strapi").factories;
+const strapiUtils = require("@strapi/utils"); // Import strapiUtils to access ValidationError
+const { ValidationError, NotFoundError } = strapiUtils.errors; // Destructure specific errors
 
 // ===========================================================================
-// Helper Functions: (Ensure these are correctly imported/defined in your project)
+// Helper Functions: (Using Strapi's built-in errors where appropriate)
 // ===========================================================================
-// These helpers should ideally be in a shared utility file (e.g., `src/utils/`).
-// For this example, they are included directly.
 const handleErrors = (error) => {
   console.error("Error occurred:", error);
-  if (error.name === "NotFoundError") {
-    return { message: error.message };
+  const errorMessage = String(error.message || '');
+
+  if (error instanceof ValidationError) {
+    return { message: errorMessage };
   }
-  if (error.message && error.message.includes("Missing required field")) {
-    return { message: error.message };
+  if (error instanceof NotFoundError) {
+    return { message: errorMessage };
   }
+  // Specifically catch the custom stock error message
+  if (errorMessage.includes("out of stock or insufficient quantity")) {
+    return { message: errorMessage };
+  }
+  if (errorMessage.includes("Your cart is empty.")) { // Catch custom cart empty error
+    return { message: errorMessage };
+  }
+  // Fallback for any other unexpected errors
   return { message: "An unexpected error occurred." };
 };
 
 const handleStatusCode = (error) => {
-  if (error.name === "NotFoundError") return 404;
-  if (error.message && error.message.includes("Missing required field"))
+  if (error instanceof ValidationError) return 400; // Bad Request
+  if (error instanceof NotFoundError) return 404; // Not Found
+  // For custom errors like "out of stock", a 400 Bad Request is appropriate
+  if (String(error.message || '').includes("out of stock or insufficient quantity")) {
     return 400;
-  return 500;
+  }
+  if (String(error.message || '').includes("Your cart is empty.")) {
+    return 400;
+  }
+  return 500; // Internal Server Error for unhandled errors
 };
 
-class NotFoundError extends Error {
-  constructor(message = "Not Found") {
-    super(message);
-    this.name = "NotFoundError";
-  }
-}
+// NotFoundError and validateBodyRequiredFields are already defined in your context
+// and are consistent with Strapi's error handling.
+// Re-importing validateBodyRequiredFields from utils/validation.js is recommended
+// const { validateBodyRequiredFields } = require('../../../utils/validation');
 
 const validateBodyRequiredFields = (body, fields) => {
-  for (const field of fields) {
-    if (
-      body[field] === undefined ||
-      body[field] === null ||
-      body[field] === ""
-    ) {
-      throw new Error(`Missing required field: ${field}`);
-    }
+  const missingFields = fields.filter(field => !body[field]);
+  if (missingFields.length > 0) {
+    throw new ValidationError(`Missing required fields: ${missingFields.join(', ')}`);
   }
 };
 // --- END Helper Functions ---
@@ -52,12 +61,13 @@ module.exports = createCoreController("api::order.order", ({ strapi }) => ({
     async createFromCart(ctx) {
         try {
             const { id: userId } = ctx.state.user;
-            const { shippingAddress, paymentMethod, orderID } = ctx.request.body.data || ctx.request.body;
+            // Safely access request body
+            const requestBody = ctx.request.body || {};
+            const { shippingAddress, paymentMethod, orderID } = requestBody.data || requestBody;
 
-            validateBodyRequiredFields(ctx.request.body.data || ctx.request.body, ["shippingAddress", "paymentMethod"]);
+            validateBodyRequiredFields(requestBody.data || requestBody, ["shippingAddress", "paymentMethod"]);
 
             // Fetch all individual cart entries for the user.
-            // Each 'api::cart.cart' entry represents one product in the cart with its quantity.
             const cartEntries = await strapi.entityService.findMany(
                 "api::cart.cart", // THIS IS CRITICAL: Ensure this UID matches your Cart Content Type exactly.
                 {
@@ -67,12 +77,12 @@ module.exports = createCoreController("api::order.order", ({ strapi }) => ({
             );
 
             if (!cartEntries || cartEntries.length === 0) {
-                throw new Error("Your cart is empty. Cannot create an order.");
+                throw new ValidationError("Your cart is empty. Cannot create an order."); // Use ValidationError
             }
 
             let totalAmount = 0;
             const productIdsInOrder = []; // To connect products to the Order via Many-to-Many
-            const productsToUpdateStock = [];
+            const productsToUpdateStock = []; // Re-added for stock updates
 
             // Process each cart entry
             for (const cartEntry of cartEntries) {
@@ -83,8 +93,10 @@ module.exports = createCoreController("api::order.order", ({ strapi }) => ({
                     // This case should ideally not happen with good data integrity
                     throw new NotFoundError(`Product associated with cart entry ID ${cartEntry.id} not found.`);
                 }
-                if (product.inStock === false || product.stock < quantity) {
-                    throw new Error(`Product "${product.name}" is out of stock or insufficient quantity (Available: ${product.stock}, Requested: ${quantity}).`);
+                // Check stock before proceeding
+                if (product.inStock === false || product.stock === undefined || product.stock < quantity) {
+                    // Changed to remove quotes around product.name
+                    throw new ValidationError(`Product ${product.name} is out of stock or insufficient quantity (Available: ${product.stock !== undefined ? product.stock : 'N/A'}, Requested: ${quantity}).`);
                 }
 
                 totalAmount += product.price * quantity;
@@ -162,7 +174,7 @@ module.exports = createCoreController("api::order.order", ({ strapi }) => ({
                     // Populate products to get their details within each order
                     populate: {
                         products: {
-                            fields: ['name', 'price', 'description', 'inStock'], // Select relevant product fields
+                            fields: ['name', 'price', 'description', 'inStock', 'stock', 'offers', 'offerPrice', 'rating', 'reviewCount'], // Select relevant product fields including new ones
                             populate: {
                                 image: {
                                     fields: ["url", "name", "alternativeText"], // For product image

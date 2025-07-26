@@ -8,7 +8,7 @@
 
 const { createCoreController } = require("@strapi/strapi").factories;
 const strapiUtils = require("@strapi/utils"); // Import the entire @strapi/utils module
-const { ValidationError } = strapiUtils.errors; // Access ValidationError from the imported module
+const { ValidationError, NotFoundError } = strapiUtils.errors; // Access ValidationError from the imported module
 
 // ===========================================================================
 // Helper Functions: (Make sure these are available, either defined here or imported)
@@ -46,13 +46,7 @@ const handleStatusCode = (error) => {
   return 500;
 };
 
-class NotFoundError extends Error {
-  constructor(message = "Not Found") {
-    super(message);
-    this.name = "NotFoundError";
-  }
-}
-
+// NotFoundError is already defined above, no need to redefine
 const validateBodyRequiredFields = (body, fields) => {
   for (const field of fields) {
     if (
@@ -71,6 +65,7 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
    * Create a new product.
    * Handles linking to related content types via their IDs (expects arrays for oneToMany relations on Product side).
    */
+  //MARK:Create a new product
   async create(ctx) {
     try {
       // Strapi v4 typically wraps request body in 'data'
@@ -80,9 +75,9 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
         description,
         price,
         inStock,
-        image, // Expects ID of uploaded media
-        category, // Expects ID (manyToOne)
-        // Relations that are oneToMany on Product side (expect arrays of IDs)
+        stock,
+        image,
+        category,
         lens_types,
         lens_coatings,
         frame_weights,
@@ -93,22 +88,38 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
         frame_sizes,
         color,
         salesCount,
+        offers,      // <-- ADDED
+        offerPrice,  // <-- ADDED
+        rating,      // <-- ADDED
+        reviewCount, // <-- ADDED
       } = requestData;
 
       // Validate required fields
-      validateBodyRequiredFields(requestData, ["name", "price"]);
+      validateBodyRequiredFields(requestData, ["name", "price", "stock"]);
 
-      // Basic type/value validation
+      // Basic type/value validation for price and stock
       if (isNaN(price) || price < 0) {
         throw new ValidationError("Price must be a non-negative number.");
       }
-      if (
-        typeof inStock !== "boolean" &&
-        inStock !== undefined &&
-        inStock !== null
-      ) {
+      if (isNaN(stock) || stock < 0) {
+        throw new ValidationError("Stock must be a non-negative integer.");
+      }
+      if (typeof inStock !== "boolean" && inStock !== undefined && inStock !== null) {
         throw new ValidationError("inStock must be a boolean (true/false).");
       }
+      if (rating !== undefined && (isNaN(rating) || rating < 0 || rating > 5)) { // <-- ADDED: Validate rating
+        throw new ValidationError("Rating must be a number between 0 and 5.");
+      }
+      if (reviewCount !== undefined && (isNaN(reviewCount) || reviewCount < 0)) { // <-- ADDED: Validate reviewCount
+        throw new ValidationError("Review count must be a non-negative integer.");
+      }
+      if (offerPrice !== undefined && (isNaN(offerPrice) || offerPrice < 0)) { // <-- ADDED: Validate offerPrice
+        throw new ValidationError("Offer price must be a non-negative number.");
+      }
+      if (offerPrice !== undefined && offerPrice >= price) { // Offer price must be less than original price
+        throw new ValidationError("Offer price must be less than the original price.");
+      }
+
 
       // Validate existence of related entities for manyToOne (category)
       if (category) {
@@ -157,7 +168,8 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
             name,
             description,
             price,
-            inStock: inStock !== undefined ? inStock : true, // Default to true if not provided
+            stock: stock,
+            inStock: inStock !== undefined ? inStock : (stock > 0), // Default based on stock if not provided
             image, // This expects the image ID if it's already uploaded
             category, // This expects the category ID
             lens_types, // Expects array of IDs
@@ -170,6 +182,10 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
             frame_sizes, // Expects array of IDs
             color,
             salesCount: salesCount || 0, // Default salesCount to 0 if not provided
+            offers,      // <-- ADDED
+            offerPrice,  // <-- ADDED
+            rating: rating || 0,      // <-- ADDED: Default to 0
+            reviewCount: reviewCount || 0, // <-- ADDED: Default to 0
             publishedAt: new Date(), // Publish immediately upon creation
           },
           // Populate all relations to get full details in the response
@@ -184,18 +200,19 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
             "frame_shapes",
             "lens_thicknesses",
             "frame_sizes",
-            "wishlistedByUsers"
+            "wishlistedByUsers",
+            "reviews" // <-- ADDED
           ],
         }
       );
 
-      // Sanitize the output
-      const sanitizedProduct = await strapiUtils.sanitize.contentAPI.output(newProduct, strapi.contentType('api::product.product'));
-
       return ctx.send({
         success: true,
         message: "Product created successfully.",
-        data: sanitizedProduct,
+        data: {
+          product_id: newProduct.id,
+          product_name: newProduct.name
+        },
       });
     } catch (error) {
       const customizedError = handleErrors(error);
@@ -210,6 +227,7 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
    * List all products with filtering, searching, sorting, and pagination.
    * Populates all relevant relations.
    */
+  //MARK:Find all products
   async find(ctx) {
     try {
       const { query } = ctx; // Access query parameters
@@ -226,7 +244,8 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
         'frame_materials',
         'frame_shapes',
         'lens_thicknesses',
-        'frame_sizes'
+        'frame_sizes',
+        'reviews' // <-- ADDED
       ];
 
       // --- 1. Search (using '_q' for fuzzy search across specified fields) ---
@@ -280,6 +299,16 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
         delete query.inStock;
       }
 
+      // Stock Range (new filter)
+      if (query.stock_gte) {
+        filters.stock = { ...filters.stock, $gte: parseInt(query.stock_gte) };
+        delete query.stock_gte;
+      }
+      if (query.stock_lte) {
+        filters.stock = { ...filters.stock, $lte: parseInt(query.stock_lte) };
+        delete query.stock_lte;
+      }
+
       // Category (by name)
       if (query.category) {
         filters.category = { name: { $eqi: query.category } };
@@ -329,11 +358,16 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
         delete query.frame_sizes;
       }
 
-      // Rating (gte) (if you add this field to your schema)
+      // Rating (gte) (New filter)
       if (query.rating_gte) {
         filters.rating = { ...filters.rating, $gte: parseFloat(query.rating_gte) };
         delete query.rating_gte;
       }
+      if (query.rating_lte) { // New filter: rating less than or equal to
+        filters.rating = { ...filters.rating, $lte: parseFloat(query.rating_lte) };
+        delete query.rating_lte;
+      }
+
 
       // --- 3. Sorting ---
       if (query._sort) {
@@ -380,17 +414,21 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
       );
 
       // Return response with data and pagination metadata
-      ctx.body = {
-        data: sanitizedProducts,
-        meta: {
-          pagination: {
-            page: page,
-            pageSize: limit,
-            pageCount: Math.ceil(total / limit),
-            total: total,
+      return ctx.send({ // Changed ctx.body to ctx.send
+        success: true,
+        message: "Products retrieved successfully.",
+        data: {
+          products: sanitizedProducts, // Nested under 'products' key
+          meta: {
+            pagination: {
+              page: page,
+              pageSize: limit,
+              pageCount: Math.ceil(total / limit),
+              total: total,
+            },
           },
         },
-      };
+      });
 
     } catch (error) {
       const customizedError = handleErrors(error); // Using your existing error handler
@@ -402,10 +440,10 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
   },
 
   /**
-   * Update an existing product.
    * Allows updating product details and its relations (expects arrays of IDs for oneToMany).
    * PUT /api/products/:id
    */
+  //MARK: Update product
   async update(ctx) {
     try {
       const { id } = ctx.params; // Product ID from URL parameters
@@ -420,6 +458,42 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
       if (!existingProduct) {
         throw new NotFoundError("Product not found.");
       }
+
+      // Validate stock if provided
+      if (requestData.stock !== undefined) {
+        if (isNaN(requestData.stock) || requestData.stock < 0) {
+          throw new ValidationError("Stock must be a non-negative integer.");
+        }
+        // Automatically update inStock based on stock if stock is provided
+        requestData.inStock = requestData.stock > 0;
+      } else {
+        // If stock is not provided in the update, but inStock is, validate inStock
+        if (requestData.inStock !== undefined && typeof requestData.inStock !== "boolean") {
+          throw new ValidationError("inStock must be a boolean (true/false).");
+        }
+      }
+
+      // Validate rating if provided
+      if (requestData.rating !== undefined && (isNaN(requestData.rating) || requestData.rating < 0 || requestData.rating > 5)) {
+        throw new ValidationError("Rating must be a number between 0 and 5.");
+      }
+      // Validate reviewCount if provided
+      if (requestData.reviewCount !== undefined && (isNaN(requestData.reviewCount) || requestData.reviewCount < 0)) {
+        throw new ValidationError("Review count must be a non-negative integer.");
+      }
+      // Validate offerPrice if provided
+      if (requestData.offerPrice !== undefined) {
+        if (isNaN(requestData.offerPrice) || requestData.offerPrice < 0) {
+          throw new ValidationError("Offer price must be a non-negative number.");
+        }
+        // If updating offerPrice, ensure it's less than the current product price
+        // (assuming price is also in requestData or fetched from existingProduct)
+        const currentPrice = requestData.price !== undefined ? requestData.price : existingProduct.price;
+        if (requestData.offerPrice >= currentPrice) {
+          throw new ValidationError("Offer price must be less than the original price.");
+        }
+      }
+
 
       // Validate existence of related entities for manyToOne (category)
       if (requestData.category !== undefined) {
@@ -477,7 +551,8 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
             "frame_shapes",
             "lens_thicknesses",
             "frame_sizes",
-            "wishlistedByUsers"
+            "wishlistedByUsers",
+            "reviews" // <-- ADDED
           ],
         }
       );
@@ -500,9 +575,10 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
   },
 
   /**
-   * Delete an existing product.
+   * an existing product.
    * DELETE /api/products/:id
    */
+  //MARK: Delete product
   async delete(ctx) {
     try {
       const { id } = ctx.params; // Product ID from URL parameters
@@ -545,7 +621,7 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
     }
   },
 
-//MARK:ADD WHISHLIST
+  //MARK:ADD WHISHLIST
   async addToWishlist(ctx) {
     try {
       const { id: userId } = ctx.state.user;
@@ -699,6 +775,10 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
               // Populate category if needed
               fields: ["name"],
             },
+            reviews: { // <-- ADDED: Populate reviews for wishlist display
+                fields: ["rating", "comment", "createdAt"],
+                populate: { user: { fields: ["username"] } } // Get reviewer's username
+            }
           },
           // You can't easily sort by "added date" with this model, as there's no specific timestamp on the join table.
           // Sorting here would be by product fields like name, price, or creation date of the product.
@@ -775,6 +855,138 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
         success: true,
         message: "Your wishlist has been cleared.",
         data: null,
+      });
+    } catch (error) {
+      const customizedError = handleErrors(error);
+      return ctx.send(
+        { success: false, message: customizedError.message },
+        handleStatusCode(error) || 500
+      );
+    }
+  },
+
+  //MARK: Add a review to a product
+  // POST /api/products/:productId/review
+  async addReview(ctx) {
+    try {
+      const { id: userId } = ctx.state.user;
+      const { productId } = ctx.params;
+      const requestData = ctx.request.body.data || ctx.request.body;
+      const { rating, comment } = requestData;
+
+      validateBodyRequiredFields(requestData, ["rating"]);
+
+      if (isNaN(rating) || rating < 1 || rating > 5) {
+        throw new ValidationError("Rating must be an integer between 1 and 5.");
+      }
+      if (comment && typeof comment !== 'string') {
+        throw new ValidationError("Comment must be a string.");
+      }
+
+      const product = await strapi.entityService.findOne(
+        "api::product.product",
+        productId,
+        { populate: ["reviews"] } // Populate existing reviews to calculate new average
+      );
+
+      if (!product) {
+        throw new NotFoundError("Product not found.");
+      }
+
+      // Check if the user has already reviewed this product
+      const existingReview = product.reviews.find(review => review.user && review.user.id === userId);
+      if (existingReview) {
+          throw new ValidationError("You have already submitted a review for this product. You can update your existing review.");
+      }
+
+      // Create the new review entry
+      const newReview = await strapi.entityService.create("api::review.review", {
+        data: {
+          rating: parseInt(rating),
+          comment: comment || null,
+          user: userId,
+          product: productId,
+          publishedAt: new Date(),
+        },
+      });
+
+      // Calculate new average rating and update review count for the product
+      const currentReviews = product.reviews || [];
+      const totalRatings = currentReviews.reduce((sum, r) => sum + r.rating, 0) + parseInt(rating);
+      const newReviewCount = currentReviews.length + 1;
+      const newAverageRating = totalRatings / newReviewCount;
+
+      await strapi.entityService.update("api::product.product", productId, {
+        data: {
+          rating: parseFloat(newAverageRating.toFixed(2)), // Store with 2 decimal places
+          reviewCount: newReviewCount,
+        },
+      });
+
+      return ctx.send({
+        success: true,
+        message: "Review added successfully.",
+        data: {
+          review: {
+            id: newReview.id,
+            rating: newReview.rating,
+            comment: newReview.comment,
+            product_id: productId,
+            user_id: userId,
+          },
+          product_updated_rating: parseFloat(newAverageRating.toFixed(2)),
+          product_updated_review_count: newReviewCount,
+        },
+      });
+    } catch (error) {
+      const customizedError = handleErrors(error);
+      return ctx.send(
+        { success: false, message: customizedError.message },
+        handleStatusCode(error) || 500
+      );
+    }
+  },
+
+  //MARK: Get reviews for a specific product
+  // GET /api/products/:productId/reviews
+  async getProductReviews(ctx) {
+    try {
+      const { productId } = ctx.params;
+
+      const product = await strapi.entityService.findOne(
+        "api::product.product",
+        productId,
+        { populate: { reviews: { populate: { user: { fields: ["username", "email", "name"] } } } } } // Populate reviews and their associated user
+      );
+
+      if (!product) {
+        throw new NotFoundError("Product not found.");
+      }
+
+      const reviews = product.reviews.map(review => ({
+        id: review.id,
+        rating: review.rating,
+        comment: review.comment,
+        createdAt: review.createdAt,
+        updatedAt: review.updatedAt,
+        user: {
+          id: review.user ? review.user.id : null,
+          username: review.user ? review.user.username : null,
+          name: review.user ? review.user.name : null,
+          email: review.user ? review.user.email : null,
+        }
+      }));
+
+      return ctx.send({
+        success: true,
+        message: "Product reviews retrieved successfully.",
+        data: {
+          product_id: productId,
+          product_name: product.name,
+          average_rating: product.rating,
+          total_reviews: product.reviewCount,
+          reviews: reviews,
+        },
       });
     } catch (error) {
       const customizedError = handleErrors(error);

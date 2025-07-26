@@ -24,16 +24,17 @@
     "inStock": {
       "type": "boolean"
     },
+    "stock": {
+      "type": "integer",
+      "min": 0,
+      "default": 0,
+      "required": true
+    },
     "image": {
       "type": "media",
       "multiple": false,
       "required": false,
-      "allowedTypes": [
-        "images",
-        "files",
-        "videos",
-        "audios"
-      ]
+      "allowedTypes": ["images", "files", "videos", "audios"]
     },
     "category": {
       "type": "relation",
@@ -97,6 +98,37 @@
       "type": "relation",
       "relation": "oneToMany",
       "target": "api::frame-size.frame-size"
+    },
+    "rating": {
+      "type": "decimal",
+      "min": 0,
+      "max": 5,
+      "default": 0,
+      "required": false,
+      "description": "Average user rating for the product"
+    },
+    "reviewCount": {
+      "type": "integer",
+      "min": 0,
+      "default": 0,
+      "required": false,
+      "description": "Number of reviews for the product"
+    },
+    "offers": {
+      "type": "text",
+      "required": false,
+      "description": "Details about current offers or promotions (e.g., 'Up to 20% off')"
+    },
+    "offerPrice": {
+      "type": "decimal",
+      "required": false,
+      "description": "Discounted price if an offer is active"
+    },
+    "reviews": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::review.review",
+      "mappedBy": "product"
     }
   }
 }

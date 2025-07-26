@@ -2,8 +2,7 @@
 
 module.exports = {
   routes: [
-    // Keep your existing auto-generated routes (find, findOne, create, update, delete) here
-    // Example:
+    
     // {
     //   method: 'GET',
     //   path: '/products',
@@ -18,7 +17,7 @@ module.exports = {
     // },
     // ... other auto-generated routes
 
-    // ---- NEW WISHLIST ROUTES ----
+   
     {
       method: 'GET',
       path: '/products',
