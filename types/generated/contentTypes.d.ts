@@ -747,6 +747,7 @@ export interface ApiOrderOrder extends Schema.CollectionType {
       'admin::user'
     > &
       Attribute.Private;
+    deliveredAt: Attribute.DateTime;
     orderedAt: Attribute.DateTime;
     orderID: Attribute.String;
     paymentMethod: Attribute.String;
@@ -757,9 +758,13 @@ export interface ApiOrderOrder extends Schema.CollectionType {
       'api::product.product'
     >;
     publishedAt: Attribute.DateTime;
+    shippedAt: Attribute.DateTime;
     shippingAddress: Attribute.Text;
-    status: Attribute.Enumeration<['pending', 'shipped']>;
+    status: Attribute.Enumeration<
+      ['pending', 'confirmed', 'delivered', 'cancelled']
+    >;
     totalAmount: Attribute.Decimal;
+    trackingId: Attribute.String;
     updatedAt: Attribute.DateTime;
     updatedBy: Attribute.Relation<
       'api::order.order',

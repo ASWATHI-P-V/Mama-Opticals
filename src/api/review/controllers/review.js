@@ -40,64 +40,6 @@ const validateBodyRequiredFields = (body, fields) => {
 
 module.exports = createCoreController("api::review.review", ({ strapi }) => ({
   //MARK:Create a review
-//   async create(ctx) {
-//     try {
-//       const { id: userId } = ctx.state.user;
-//       const requestData = ctx.request.body.data || ctx.request.body;
-//       const { rating, comment, product } = requestData;
-
-//       validateBodyRequiredFields(requestData, ["rating", "product"]);
-
-//       if (isNaN(rating) || rating < 1 || rating > 5) {
-//         throw new ValidationError("Rating must be an integer between 1 and 5.");
-//       }
-//       if (comment && typeof comment !== 'string') {
-//         throw new ValidationError("Comment must be a string.");
-//       }
-
-//       // Check if product exists
-//       const productEntity = await strapi.entityService.findOne("api::product.product", product);
-//       if (!productEntity) {
-//         throw new NotFoundError("Product not found.");
-//       }
-
-//       // Check if user has already reviewed this product via this method
-//       const existingReview = await strapi.entityService.findMany("api::review.review", {
-//         filters: {
-//           user: userId,
-//           product: product,
-//         },
-//         limit: 1
-//       });
-
-//       if (existingReview.length > 0) {
-//         throw new ValidationError("You have already submitted a review for this product. You can update it.");
-//       }
-
-//       const newReview = await strapi.entityService.create("api::review.review", {
-//         data: {
-//           rating: parseInt(rating),
-//           comment: comment || null,
-//           user: userId,
-//           product: product,
-//           publishedAt: new Date(),
-//         },
-//         populate: ['user', 'product']
-//       });
-
-//       return ctx.send({
-//         success: true,
-//         message: "Review created successfully.",
-//         data: newReview,
-//       });
-//     } catch (error) {
-//       const customizedError = handleErrors(error);
-//       return ctx.send(
-//         { success: false, message: customizedError.message },
-//         handleStatusCode(error) || 500
-//       );
-//     }
-//   },
   async create(ctx) {
     try {
       const { id: userId } = ctx.state.user;

@@ -19,7 +19,9 @@
       "type": "enumeration",
       "enum": [
         "pending",
-        "shipped"
+        "confirmed",
+        "delivered",
+        "cancelled"
       ]
     },
     "user": {
@@ -52,6 +54,15 @@
     },
     "orderedAt": {
       "type": "datetime"
+    },
+    "shippedAt": {
+      "type": "datetime"
+    },
+    "deliveredAt": {
+      "type": "datetime"
+    },
+    "trackingId": {
+      "type": "string"
     }
   }
 }

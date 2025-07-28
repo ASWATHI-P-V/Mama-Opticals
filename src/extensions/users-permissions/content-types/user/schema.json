@@ -62,7 +62,7 @@
       "unique": false
     },
     "phone": {
-          "type": "customField",
+      "type": "customField",
       "customField": "plugin::strapi-phone-validator.phone",
       "options": {
         "country": "in"

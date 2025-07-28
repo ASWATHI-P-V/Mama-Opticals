@@ -34,29 +34,42 @@ module.exports = {
 
     // Custom route to create an order from the user's cart
     {
-      method: 'POST',
-      path: '/orders/create-from-cart',
-      handler: 'api::order.order.createFromCart',
+      method: "POST",
+      path: "/orders/create-from-cart",
+      handler: "api::order.order.createFromCart",
       config: {
         policies: [],
         middlewares: [],
-        auth: { // Ensures only authenticated users can use this
-            scope: ['api::order.order.createFromCart']
-        }
+        auth: {
+          // Ensures only authenticated users can use this
+          scope: ["api::order.order.createFromCart"],
+        },
       },
     },
 
     // Custom route to get all orders for the authenticated user
     {
-      method: 'GET',
-      path: '/orders/me',
-      handler: 'api::order.order.getMyOrders',
+      method: "GET",
+      path: "/orders/me",
+      handler: "api::order.order.getMyOrders",
       config: {
         policies: [],
         middlewares: [],
-        auth: { // Ensures only authenticated users can use this
-            scope: ['api::order.order.getMyOrders']
-        }
+        auth: {
+          scope: ["api::order.order.getMyOrders"],
+        },
+      },
+    },
+    {
+      method: "GET",
+      path: "/orders/track/:orderId",
+      handler: "order.trackOrder",
+      config: {
+        auth: {
+          scope: ["api::order.order.trackOrder"],
+        },
+        middlewares: [],
+        policies: [],
       },
     },
   ],

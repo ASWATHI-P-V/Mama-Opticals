@@ -453,6 +453,54 @@ module.exports = (plugin) => {
     }
   };
 
+  // MARK: Logout Method ---
+  plugin.controllers.auth.logout = async (ctx) => {
+    try {
+      // In a JWT-based system, the server doesn't "destroy" the token.
+      // Logout primarily involves the client discarding its JWT.
+      // However, we can still have a server-side endpoint to:
+      // 1. Acknowledge the logout request.
+      // 2. Potentially implement token blacklisting for enhanced security (optional).
+
+      // Ensure the user is authenticated to call this endpoint
+      if (!ctx.state.user) {
+        throw new UnauthorizedError("No authenticated user found.");
+      }
+
+      // If you were implementing token blacklisting, you would get the JWT
+      // from the Authorization header (ctx.request.headers.authorization)
+      // and add it to a blacklist here.
+      // Example (conceptual, requires a database table or Redis for blacklist):
+      // const token = ctx.request.headers.authorization?.split(' ')[1];
+      // if (token) {
+      //   await strapi.entityService.create('api::token-blacklist.token-blacklist', {
+      //     data: {
+      //       token: token,
+      //       expiresAt: new Date(ctx.state.auth.tokenExpiresAt), // Store token expiry
+      //       userId: ctx.state.user.id,
+      //       publishedAt: new Date(),
+      //     }
+      //   });
+      // }
+
+      return ctx.send({
+        success: true,
+        message:
+          "Logout successful. ",
+      });
+      //Please remove your authentication token from the client-side.
+    } catch (error) {
+      const customizedError = handleErrors(error);
+      return ctx.send(
+        {
+          success: false,
+          message: customizedError.message,
+        },
+        handleStatusCode(error) || 500
+      );
+    }
+  };
+
   //MARK: me Method (Updated to include new fields)
   plugin.controllers.user.me = async (ctx) => {
     try {
@@ -711,7 +759,7 @@ module.exports = (plugin) => {
             // Alternatively, the new password could be passed in the verify OTP step.
             // For simplicity and to avoid passing sensitive data repeatedly, we'll store it here.
             // A more robust solution might involve a temporary token instead of storing the new password.
-            tempNewPassword:body.newPassword
+            tempNewPassword: body.newPassword,
           },
         }
       );
@@ -790,7 +838,7 @@ module.exports = (plugin) => {
 
       return ctx.send({
         success: true,
-        message: "Password updated successfully."
+        message: "Password updated successfully.",
       });
     } catch (error) {
       const customizedError = handleErrors(error);
@@ -877,6 +925,15 @@ module.exports = (plugin) => {
       handler: "auth.verifyOtp",
       config: {
         middlewares: ["plugin::users-permissions.rateLimit"],
+        prefix: "",
+      },
+    },
+    {
+      method: "POST",
+      path: "/auth/logout",
+      handler: "auth.logout",
+      config: {
+        middlewares: ["plugin::users-permissions.rateLimit"], 
         prefix: "",
       },
     },

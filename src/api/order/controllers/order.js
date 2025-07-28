@@ -118,8 +118,7 @@ module.exports = createCoreController("api::order.order", ({ strapi }) => ({
                     totalAmount: totalAmount,
                     shippingAddress: shippingAddress,
                     paymentMethod: paymentMethod,
-                    paymentStatus: 'pending',
-                    orderedAt: new Date(),
+                    paymentStatus: 'pending'
                 },
                 populate: ['user', 'products'] // Populate to return the full order details
             });
@@ -206,6 +205,110 @@ module.exports = createCoreController("api::order.order", ({ strapi }) => ({
                     user_id: userId,
                 },
             });
+        } catch (error) {
+            const customizedError = handleErrors(error);
+            return ctx.send(
+                { success: false, message: customizedError.message },
+                handleStatusCode(error) || 500
+            );
+        }
+    },
+    // MARK: Order Tracking
+    async trackOrder(ctx) {
+        try {
+            const { orderId } = ctx.params; // Get the orderId from the URL parameters
+            const { id: userId } = ctx.state.user; // Get the authenticated user's ID
+
+            if (!orderId) {
+                throw new ValidationError("Order ID is required for tracking.");
+            }
+
+            // Find the order by its custom orderID and ensure it belongs to the authenticated user
+            const order = await strapi.entityService.findMany(
+                "api::order.order",
+                {
+                    filters: {
+                        orderID: orderId, // Filter by the custom orderID
+                        user: userId,     // Ensure it belongs to the current user
+                    },
+                    populate: {
+                        products: {
+                            fields: ['name', 'price', 'description', 'inStock', 'stock', 'offers', 'offerPrice', 'rating', 'reviewCount'],
+                            populate: {
+                                image: {
+                                    fields: ["url", "name", "alternativeText"],
+                                },
+                            },
+                        },
+                    },
+                }
+            );
+
+            if (!order || order.length === 0) {
+                throw new NotFoundError(`Order with ID '${orderId}' not found for this user.`);
+            }
+
+            const orderDetails = order[0]; // Get the single order object
+            let statusMessage = "Unknown order status.";
+            let trackingInfo = {}; // Object to hold specific tracking details
+
+            // Logic to customize response based on order status
+            switch (orderDetails.status) {
+                case 'pending':
+                case 'confirmed':
+                    statusMessage = `Your order #${orderDetails.orderID} has been placed successfully.`;
+                    trackingInfo = {
+                        currentStatus: "Order Placed",
+                        estimatedShipDate: "Within 1-2 business days", // Placeholder
+                        orderDate: orderDetails.orderedAt ? new Date(orderDetails.orderedAt).toLocaleString() : 'N/A',
+                        nextStep: "We are processing your order and preparing it for shipment."
+                    };
+                    break;
+                case 'shipped':
+                    statusMessage = `Good news! Your order #${orderDetails.orderID} is on its way.`;
+                    trackingInfo = {
+                        currentStatus: "Order on the Way",
+                        shippedDate: orderDetails.shippedAt ? new Date(orderDetails.shippedAt).toLocaleString() : 'Soon', // Assuming 'shippedAt' field
+                        estimatedDeliveryDate: new Date(new Date().getTime() + 3 * 24 * 60 * 60 * 1000).toDateString(), // Example: 3 days from now
+                        trackingNumber: "MAMAOPT-TRK123456789", // Placeholder: Replace with actual tracking number
+                        nextStep: "Anticipate delivery within the next few days."
+                    };
+                    break;
+                case 'delivered':
+                    statusMessage = `Your order #${orderDetails.orderID} has been delivered!`;
+                    trackingInfo = {
+                        currentStatus: "Delivered",
+                        deliveredDate: orderDetails.deliveredAt ? new Date(orderDetails.deliveredAt).toLocaleString() : 'Recent', // Assuming 'deliveredAt' field
+                        deliveryConfirmation: "Enjoy your purchase!",
+                        nextStep: "Thank you for shopping with Mama Opticals."
+                    };
+                    break;
+                case 'cancelled':
+                    statusMessage = `Your order #${orderDetails.orderID} has been cancelled.`;
+                    trackingInfo = {
+                        currentStatus: "Cancelled",
+                        cancellationReason: "Please contact support for details.", 
+                        nextStep: "We apologize for any inconvenience."
+                    };
+                    break;
+                default:
+                    statusMessage = `Order #${orderDetails.orderID} status: ${orderDetails.status}.`;
+                    trackingInfo = {
+                        currentStatus: orderDetails.status,
+                        nextStep: "Please check back later for updates."
+                    };
+            }
+
+
+            return ctx.send({
+                success: true,
+                message: statusMessage, // Dynamic message
+                data: {
+                    order: orderDetails, // Still include the full order details
+                    trackingInfo: trackingInfo, // Add specific tracking details based on status
+                },
+            });
+
         } catch (error) {
             const customizedError = handleErrors(error);
             return ctx.send(
