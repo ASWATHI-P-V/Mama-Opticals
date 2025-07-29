@@ -412,6 +412,55 @@ export interface ApiAddressAddress extends Schema.CollectionType {
   };
 }
 
+export interface ApiBlogPostBlogPost extends Schema.CollectionType {
+  collectionName: 'blog_posts';
+  info: {
+    displayName: 'BlogPost';
+    pluralName: 'blog-posts';
+    singularName: 'blog-post';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    authorName: Attribute.String;
+    backgroundImage: Attribute.Media<'images' | 'files' | 'videos' | 'audios'>;
+    content: Attribute.Text;
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::blog-post.blog-post',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    eye_care_category: Attribute.Relation<
+      'api::blog-post.blog-post',
+      'oneToOne',
+      'api::eye-care-category.eye-care-category'
+    >;
+    publishedAt: Attribute.DateTime;
+    publishedDate: Attribute.DateTime;
+    rating: Attribute.Integer &
+      Attribute.SetMinMax<
+        {
+          max: 5;
+          min: 1;
+        },
+        number
+      >;
+    relatedBlogPosts: Attribute.JSON;
+    slug: Attribute.String;
+    title: Attribute.String;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::blog-post.blog-post',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+  };
+}
+
 export interface ApiBrandBrand extends Schema.CollectionType {
   collectionName: 'brands';
   info: {
@@ -505,6 +554,119 @@ export interface ApiCategoryCategory extends Schema.CollectionType {
     updatedAt: Attribute.DateTime;
     updatedBy: Attribute.Relation<
       'api::category.category',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+  };
+}
+
+export interface ApiChatMessageChatMessage extends Schema.CollectionType {
+  collectionName: 'chat_messages';
+  info: {
+    displayName: 'Chat Message';
+    pluralName: 'chat-messages';
+    singularName: 'chat-message';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    attachments: Attribute.Media<
+      'images' | 'files' | 'videos' | 'audios',
+      true
+    >;
+    chat_sessions: Attribute.Relation<
+      'api::chat-message.chat-message',
+      'oneToMany',
+      'api::chat-session.chat-session'
+    >;
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::chat-message.chat-message',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    message: Attribute.Text & Attribute.Required;
+    publishedAt: Attribute.DateTime;
+    senderRole: Attribute.String & Attribute.Required;
+    timestamp: Attribute.DateTime;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::chat-message.chat-message',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+  };
+}
+
+export interface ApiChatSessionChatSession extends Schema.CollectionType {
+  collectionName: 'chat_sessions';
+  info: {
+    displayName: 'Chat Session ';
+    pluralName: 'chat-sessions';
+    singularName: 'chat-session';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    chat_message: Attribute.Relation<
+      'api::chat-session.chat-session',
+      'manyToOne',
+      'api::chat-message.chat-message'
+    >;
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::chat-session.chat-session',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    publishedAt: Attribute.DateTime;
+    session_id: Attribute.String & Attribute.Required & Attribute.Unique;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::chat-session.chat-session',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    user: Attribute.Relation<
+      'api::chat-session.chat-session',
+      'oneToOne',
+      'plugin::users-permissions.user'
+    >;
+  };
+}
+
+export interface ApiEyeCareCategoryEyeCareCategory
+  extends Schema.CollectionType {
+  collectionName: 'eye_care_categories';
+  info: {
+    description: '';
+    displayName: 'EyeCare Category';
+    pluralName: 'eye-care-categories';
+    singularName: 'eye-care-category';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::eye-care-category.eye-care-category',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    publishedAt: Attribute.DateTime;
+    slug: Attribute.String & Attribute.Required & Attribute.Unique;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::eye-care-category.eye-care-category',
       'oneToOne',
       'admin::user'
     > &
@@ -989,6 +1151,44 @@ export interface ApiSubcategorySubcategory extends Schema.CollectionType {
   };
 }
 
+export interface ApiVideoVideo extends Schema.CollectionType {
+  collectionName: 'videos';
+  info: {
+    displayName: 'Video';
+    pluralName: 'videos';
+    singularName: 'video';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::video.video',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    description: Attribute.Text;
+    eye_care_category: Attribute.Relation<
+      'api::video.video',
+      'oneToOne',
+      'api::eye-care-category.eye-care-category'
+    >;
+    publishedAt: Attribute.DateTime;
+    relatedVideos: Attribute.JSON;
+    slug: Attribute.String;
+    title: Attribute.String;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::video.video',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+  };
+}
+
 export interface PluginContentReleasesRelease extends Schema.CollectionType {
   collectionName: 'strapi_releases';
   info: {
@@ -1452,9 +1652,13 @@ declare module '@strapi/types' {
       'admin::transfer-token-permission': AdminTransferTokenPermission;
       'admin::user': AdminUser;
       'api::address.address': ApiAddressAddress;
+      'api::blog-post.blog-post': ApiBlogPostBlogPost;
       'api::brand.brand': ApiBrandBrand;
       'api::cart.cart': ApiCartCart;
       'api::category.category': ApiCategoryCategory;
+      'api::chat-message.chat-message': ApiChatMessageChatMessage;
+      'api::chat-session.chat-session': ApiChatSessionChatSession;
+      'api::eye-care-category.eye-care-category': ApiEyeCareCategoryEyeCareCategory;
       'api::frame-material.frame-material': ApiFrameMaterialFrameMaterial;
       'api::frame-shape.frame-shape': ApiFrameShapeFrameShape;
       'api::frame-size.frame-size': ApiFrameSizeFrameSize;
@@ -1466,6 +1670,7 @@ declare module '@strapi/types' {
       'api::product.product': ApiProductProduct;
       'api::review.review': ApiReviewReview;
       'api::subcategory.subcategory': ApiSubcategorySubcategory;
+      'api::video.video': ApiVideoVideo;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;
       'plugin::i18n.locale': PluginI18NLocale;

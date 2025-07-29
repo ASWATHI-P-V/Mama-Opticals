@@ -245,7 +245,7 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
         'frame_shapes',
         'lens_thicknesses',
         'frame_sizes',
-        'reviews' // <-- ADDED
+        'reviews' 
       ];
 
       // --- 1. Search (using '_q' for fuzzy search across specified fields) ---

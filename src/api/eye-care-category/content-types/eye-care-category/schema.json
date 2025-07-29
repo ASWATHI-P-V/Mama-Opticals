@@ -1,0 +1,21 @@
+{
+  "kind": "collectionType",
+  "collectionName": "eye_care_categories",
+  "info": {
+    "singularName": "eye-care-category",
+    "pluralName": "eye-care-categories",
+    "displayName": "EyeCare Category",
+    "description": ""
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "slug": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    }
+  }
+}
