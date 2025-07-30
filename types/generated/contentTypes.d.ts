@@ -674,6 +674,95 @@ export interface ApiEyeCareCategoryEyeCareCategory
   };
 }
 
+export interface ApiEyePowerEyePower extends Schema.CollectionType {
+  collectionName: 'eye_powers';
+  info: {
+    description: '';
+    displayName: 'Eye Power';
+    pluralName: 'eye-powers';
+    singularName: 'eye-power';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  pluginOptions: {
+    i18n: {
+      localized: true;
+    };
+  };
+  attributes: {
+    age: Attribute.Integer &
+      Attribute.SetMinMax<
+        {
+          max: 120;
+          min: 0;
+        },
+        number
+      >;
+    clinic_name: Attribute.String &
+      Attribute.SetMinMaxLength<{
+        maxLength: 255;
+      }>;
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::eye-power.eye-power',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    is_manualentry: Attribute.Boolean &
+      Attribute.Required &
+      Attribute.DefaultTo<false>;
+    left_eyeAXIS: Attribute.Integer &
+      Attribute.SetMinMax<
+        {
+          max: 180;
+          min: 0;
+        },
+        number
+      >;
+    left_eyeCYL: Attribute.Decimal;
+    left_eyeSPH: Attribute.Decimal;
+    locale: Attribute.String;
+    localizations: Attribute.Relation<
+      'api::eye-power.eye-power',
+      'oneToMany',
+      'api::eye-power.eye-power'
+    >;
+    name: Attribute.String &
+      Attribute.Required &
+      Attribute.SetMinMaxLength<{
+        maxLength: 255;
+      }>;
+    notes: Attribute.Text & Attribute.Private;
+    prescription_date: Attribute.Date & Attribute.Required;
+    prescription_image: Attribute.Media<'images' | 'files'>;
+    publishedAt: Attribute.DateTime;
+    right_eyeAXIS: Attribute.Integer &
+      Attribute.SetMinMax<
+        {
+          max: 180;
+          min: 0;
+        },
+        number
+      >;
+    right_eyeCYL: Attribute.Decimal;
+    right_eyeSPH: Attribute.Decimal;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::eye-power.eye-power',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    user: Attribute.Relation<
+      'api::eye-power.eye-power',
+      'oneToOne',
+      'plugin::users-permissions.user'
+    >;
+  };
+}
+
 export interface ApiFrameMaterialFrameMaterial extends Schema.CollectionType {
   collectionName: 'frame_materials';
   info: {
@@ -1148,6 +1237,71 @@ export interface ApiSubcategorySubcategory extends Schema.CollectionType {
       'admin::user'
     > &
       Attribute.Private;
+  };
+}
+
+export interface ApiSupportSupport extends Schema.CollectionType {
+  collectionName: 'supports';
+  info: {
+    description: 'Stores individual chat messages for human customer support.';
+    displayName: 'Support Chat Message';
+    pluralName: 'supports';
+    singularName: 'support';
+  };
+  options: {
+    draftAndPublish: false;
+    timestamps: true;
+  };
+  pluginOptions: {
+    i18n: {
+      localized: true;
+    };
+  };
+  attributes: {
+    attachments: Attribute.Media<
+      'images' | 'files' | 'videos' | 'audios',
+      true
+    >;
+    conversationId: Attribute.UID &
+      Attribute.Required &
+      Attribute.SetMinMaxLength<{
+        minLength: 16;
+      }>;
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::support.support',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    locale: Attribute.String;
+    localizations: Attribute.Relation<
+      'api::support.support',
+      'oneToMany',
+      'api::support.support'
+    >;
+    message: Attribute.Text &
+      Attribute.SetMinMaxLength<{
+        minLength: 1;
+      }>;
+    readByAdmin: Attribute.Boolean & Attribute.DefaultTo<false>;
+    readByUser: Attribute.Boolean & Attribute.DefaultTo<false>;
+    sender: Attribute.Enumeration<['user', 'admin']> &
+      Attribute.Required &
+      Attribute.DefaultTo<'user'>;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::support.support',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    user: Attribute.Relation<
+      'api::support.support',
+      'manyToOne',
+      'plugin::users-permissions.user'
+    > &
+      Attribute.Required;
   };
 }
 
@@ -1630,6 +1784,11 @@ export interface PluginUsersPermissionsUser extends Schema.CollectionType {
       'manyToOne',
       'plugin::users-permissions.role'
     >;
+    supports: Attribute.Relation<
+      'plugin::users-permissions.user',
+      'oneToMany',
+      'api::support.support'
+    >;
     tempNewPassword: Attribute.String & Attribute.Private;
     updatedAt: Attribute.DateTime;
     updatedBy: Attribute.Relation<
@@ -1659,6 +1818,7 @@ declare module '@strapi/types' {
       'api::chat-message.chat-message': ApiChatMessageChatMessage;
       'api::chat-session.chat-session': ApiChatSessionChatSession;
       'api::eye-care-category.eye-care-category': ApiEyeCareCategoryEyeCareCategory;
+      'api::eye-power.eye-power': ApiEyePowerEyePower;
       'api::frame-material.frame-material': ApiFrameMaterialFrameMaterial;
       'api::frame-shape.frame-shape': ApiFrameShapeFrameShape;
       'api::frame-size.frame-size': ApiFrameSizeFrameSize;
@@ -1670,6 +1830,7 @@ declare module '@strapi/types' {
       'api::product.product': ApiProductProduct;
       'api::review.review': ApiReviewReview;
       'api::subcategory.subcategory': ApiSubcategorySubcategory;
+      'api::support.support': ApiSupportSupport;
       'api::video.video': ApiVideoVideo;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;

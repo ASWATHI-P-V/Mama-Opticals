@@ -121,6 +121,12 @@
       "relation": "oneToMany",
       "target": "api::review.review",
       "mappedBy": "user"
+    },
+    "supports": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::support.support",
+      "mappedBy": "user"
     }
   }
 }
