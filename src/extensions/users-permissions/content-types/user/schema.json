@@ -9,16 +9,9 @@
     "displayName": "User"
   },
   "options": {
-    "draftAndPublish": false,
-    "timestamps": true
+    "draftAndPublish": false
   },
   "attributes": {
-    "email": {
-      "type": "email",
-      "minLength": 6,
-      "unique": true,
-      "required": true
-    },
     "provider": {
       "type": "string",
       "configurable": false
@@ -56,11 +49,6 @@
       "inversedBy": "users",
       "configurable": false
     },
-    "name": {
-      "type": "string",
-      "required": true,
-      "unique": false
-    },
     "phone": {
       "type": "customField",
       "customField": "plugin::strapi-phone-validator.phone",
@@ -69,6 +57,17 @@
       },
       "unique": true,
       "configurable": false
+    },
+    "email": {
+      "type": "email",
+      "minLength": 6,
+      "unique": true,
+      "required": true
+    },
+    "name": {
+      "type": "string",
+      "required": true,
+      "unique": false
     },
     "profileImage": {
       "type": "media",
@@ -122,10 +121,16 @@
       "target": "api::review.review",
       "mappedBy": "user"
     },
-    "supports": {
+    "customer_supports": {
       "type": "relation",
       "relation": "oneToMany",
-      "target": "api::support.support",
+      "target": "api::customer-support.customer-support",
+      "mappedBy": "user"
+    },
+    "notifications": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::notification.notification",
       "mappedBy": "user"
     }
   }

@@ -27,8 +27,7 @@
       "type": "relation",
       "relation": "manyToOne",
       "target": "plugin::users-permissions.user",
-      "inversedBy": "reviews",
-      "required": true
+      "inversedBy": "reviews"
     },
     "product": {
       "type": "relation",

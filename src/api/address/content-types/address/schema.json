@@ -31,7 +31,11 @@
     },
     "home_work": {
       "type": "enumeration",
-      "enum": ["Home", "Work", "Other"],
+      "enum": [
+        "Home",
+        "Work",
+        "Other"
+      ],
       "required": false,
       "description": "Type of address (Home, Work, Other)"
     },

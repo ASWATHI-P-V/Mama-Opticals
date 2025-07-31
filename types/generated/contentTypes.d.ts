@@ -602,6 +602,64 @@ export interface ApiChatMessageChatMessage extends Schema.CollectionType {
   };
 }
 
+export interface ApiChatRecommendationChatRecommendation
+  extends Schema.CollectionType {
+  collectionName: 'chat_recommendations';
+  info: {
+    description: 'Predefined chat recommendations/FAQs for customer support.';
+    displayName: 'Chat Recommendation';
+    pluralName: 'chat-recommendations';
+    singularName: 'chat-recommendation';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  pluginOptions: {
+    i18n: {
+      localized: true;
+    };
+  };
+  attributes: {
+    category: Attribute.String &
+      Attribute.SetMinMaxLength<{
+        maxLength: 100;
+      }>;
+    content: Attribute.Text & Attribute.Required;
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::chat-recommendation.chat-recommendation',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    keywords: Attribute.String &
+      Attribute.Private &
+      Attribute.SetMinMaxLength<{
+        maxLength: 255;
+      }>;
+    locale: Attribute.String;
+    localizations: Attribute.Relation<
+      'api::chat-recommendation.chat-recommendation',
+      'oneToMany',
+      'api::chat-recommendation.chat-recommendation'
+    >;
+    publishedAt: Attribute.DateTime;
+    title: Attribute.String &
+      Attribute.Required &
+      Attribute.Unique &
+      Attribute.SetMinMaxLength<{
+        maxLength: 255;
+      }>;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::chat-recommendation.chat-recommendation',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+  };
+}
+
 export interface ApiChatSessionChatSession extends Schema.CollectionType {
   collectionName: 'chat_sessions';
   info: {
@@ -637,6 +695,52 @@ export interface ApiChatSessionChatSession extends Schema.CollectionType {
     user: Attribute.Relation<
       'api::chat-session.chat-session',
       'oneToOne',
+      'plugin::users-permissions.user'
+    >;
+  };
+}
+
+export interface ApiCustomerSupportCustomerSupport
+  extends Schema.CollectionType {
+  collectionName: 'customer_supports';
+  info: {
+    displayName: 'Customer Support';
+    pluralName: 'customer-supports';
+    singularName: 'customer-support';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    attachments: Attribute.Media<
+      'images' | 'files' | 'videos' | 'audios',
+      true
+    >;
+    conversationId: Attribute.UID & Attribute.Required;
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::customer-support.customer-support',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    message: Attribute.String;
+    publishedAt: Attribute.DateTime;
+    readByAdmin: Attribute.Boolean & Attribute.DefaultTo<false>;
+    readByUser: Attribute.Boolean & Attribute.DefaultTo<false>;
+    sender: Attribute.Enumeration<['user', 'admin']> &
+      Attribute.Required &
+      Attribute.DefaultTo<'user'>;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::customer-support.customer-support',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    user: Attribute.Relation<
+      'api::customer-support.customer-support',
+      'manyToOne',
       'plugin::users-permissions.user'
     >;
   };
@@ -979,6 +1083,54 @@ export interface ApiLensTypeLensType extends Schema.CollectionType {
   };
 }
 
+export interface ApiNotificationNotification extends Schema.CollectionType {
+  collectionName: 'notifications';
+  info: {
+    displayName: 'Notification';
+    pluralName: 'notifications';
+    singularName: 'notification';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::notification.notification',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    message: Attribute.Text & Attribute.Required;
+    publishedAt: Attribute.DateTime;
+    read: Attribute.Boolean & Attribute.DefaultTo<false>;
+    relatedOrder: Attribute.Relation<
+      'api::notification.notification',
+      'oneToOne',
+      'api::order.order'
+    >;
+    sentAt: Attribute.DateTime &
+      Attribute.Required &
+      Attribute.DefaultTo<'NOW'>;
+    title: Attribute.String & Attribute.Required;
+    type: Attribute.Enumeration<['order_status', 'promo', 'system']> &
+      Attribute.Required &
+      Attribute.DefaultTo<'order_status'>;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::notification.notification',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    user: Attribute.Relation<
+      'api::notification.notification',
+      'manyToOne',
+      'plugin::users-permissions.user'
+    >;
+  };
+}
+
 export interface ApiOrderOrder extends Schema.CollectionType {
   collectionName: 'orders';
   info: {
@@ -1205,8 +1357,7 @@ export interface ApiReviewReview extends Schema.CollectionType {
       'api::review.review',
       'manyToOne',
       'plugin::users-permissions.user'
-    > &
-      Attribute.Required;
+    >;
   };
 }
 
@@ -1237,71 +1388,6 @@ export interface ApiSubcategorySubcategory extends Schema.CollectionType {
       'admin::user'
     > &
       Attribute.Private;
-  };
-}
-
-export interface ApiSupportSupport extends Schema.CollectionType {
-  collectionName: 'supports';
-  info: {
-    description: 'Stores individual chat messages for human customer support.';
-    displayName: 'Support Chat Message';
-    pluralName: 'supports';
-    singularName: 'support';
-  };
-  options: {
-    draftAndPublish: false;
-    timestamps: true;
-  };
-  pluginOptions: {
-    i18n: {
-      localized: true;
-    };
-  };
-  attributes: {
-    attachments: Attribute.Media<
-      'images' | 'files' | 'videos' | 'audios',
-      true
-    >;
-    conversationId: Attribute.UID &
-      Attribute.Required &
-      Attribute.SetMinMaxLength<{
-        minLength: 16;
-      }>;
-    createdAt: Attribute.DateTime;
-    createdBy: Attribute.Relation<
-      'api::support.support',
-      'oneToOne',
-      'admin::user'
-    > &
-      Attribute.Private;
-    locale: Attribute.String;
-    localizations: Attribute.Relation<
-      'api::support.support',
-      'oneToMany',
-      'api::support.support'
-    >;
-    message: Attribute.Text &
-      Attribute.SetMinMaxLength<{
-        minLength: 1;
-      }>;
-    readByAdmin: Attribute.Boolean & Attribute.DefaultTo<false>;
-    readByUser: Attribute.Boolean & Attribute.DefaultTo<false>;
-    sender: Attribute.Enumeration<['user', 'admin']> &
-      Attribute.Required &
-      Attribute.DefaultTo<'user'>;
-    updatedAt: Attribute.DateTime;
-    updatedBy: Attribute.Relation<
-      'api::support.support',
-      'oneToOne',
-      'admin::user'
-    > &
-      Attribute.Private;
-    user: Attribute.Relation<
-      'api::support.support',
-      'manyToOne',
-      'plugin::users-permissions.user'
-    > &
-      Attribute.Required;
   };
 }
 
@@ -1723,7 +1809,6 @@ export interface PluginUsersPermissionsUser extends Schema.CollectionType {
   };
   options: {
     draftAndPublish: false;
-    timestamps: true;
   };
   attributes: {
     addresses: Attribute.Relation<
@@ -1741,6 +1826,11 @@ export interface PluginUsersPermissionsUser extends Schema.CollectionType {
       'admin::user'
     > &
       Attribute.Private;
+    customer_supports: Attribute.Relation<
+      'plugin::users-permissions.user',
+      'oneToMany',
+      'api::customer-support.customer-support'
+    >;
     dateOfBirth: Attribute.Date & Attribute.Required;
     email: Attribute.Email &
       Attribute.Required &
@@ -1751,6 +1841,11 @@ export interface PluginUsersPermissionsUser extends Schema.CollectionType {
     gender: Attribute.Enumeration<['Male', 'Female', 'Other']> &
       Attribute.Required;
     name: Attribute.String & Attribute.Required;
+    notifications: Attribute.Relation<
+      'plugin::users-permissions.user',
+      'oneToMany',
+      'api::notification.notification'
+    >;
     orders: Attribute.Relation<
       'plugin::users-permissions.user',
       'oneToMany',
@@ -1784,11 +1879,6 @@ export interface PluginUsersPermissionsUser extends Schema.CollectionType {
       'manyToOne',
       'plugin::users-permissions.role'
     >;
-    supports: Attribute.Relation<
-      'plugin::users-permissions.user',
-      'oneToMany',
-      'api::support.support'
-    >;
     tempNewPassword: Attribute.String & Attribute.Private;
     updatedAt: Attribute.DateTime;
     updatedBy: Attribute.Relation<
@@ -1816,7 +1906,9 @@ declare module '@strapi/types' {
       'api::cart.cart': ApiCartCart;
       'api::category.category': ApiCategoryCategory;
       'api::chat-message.chat-message': ApiChatMessageChatMessage;
+      'api::chat-recommendation.chat-recommendation': ApiChatRecommendationChatRecommendation;
       'api::chat-session.chat-session': ApiChatSessionChatSession;
+      'api::customer-support.customer-support': ApiCustomerSupportCustomerSupport;
       'api::eye-care-category.eye-care-category': ApiEyeCareCategoryEyeCareCategory;
       'api::eye-power.eye-power': ApiEyePowerEyePower;
       'api::frame-material.frame-material': ApiFrameMaterialFrameMaterial;
@@ -1826,11 +1918,11 @@ declare module '@strapi/types' {
       'api::lens-coating.lens-coating': ApiLensCoatingLensCoating;
       'api::lens-thickness.lens-thickness': ApiLensThicknessLensThickness;
       'api::lens-type.lens-type': ApiLensTypeLensType;
+      'api::notification.notification': ApiNotificationNotification;
       'api::order.order': ApiOrderOrder;
       'api::product.product': ApiProductProduct;
       'api::review.review': ApiReviewReview;
       'api::subcategory.subcategory': ApiSubcategorySubcategory;
-      'api::support.support': ApiSupportSupport;
       'api::video.video': ApiVideoVideo;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;

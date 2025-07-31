@@ -1,0 +1,57 @@
+{
+  "kind": "collectionType",
+  "collectionName": "customer_supports",
+  "info": {
+    "singularName": "customer-support",
+    "pluralName": "customer-supports",
+    "displayName": "Customer Support"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "message": {
+      "type": "string"
+    },
+    "sender": {
+      "type": "enumeration",
+      "enum": [
+        "user",
+        "admin"
+      ],
+      "required": true,
+      "default": "user"
+    },
+    "conversationId": {
+      "type": "uid",
+      "required": true,
+      "unique": false
+    },
+    "readByAdmin": {
+      "type": "boolean",
+      "default": false
+    },
+    "readByUser": {
+      "type": "boolean",
+      "default": false
+    },
+    "attachments": {
+      "type": "media",
+      "multiple": true,
+      "required": false,
+      "allowedTypes": [
+        "images",
+        "files",
+        "videos",
+        "audios"
+      ]
+    },
+    "user": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user",
+      "inversedBy": "customer_supports"
+    }
+  }
+}
