@@ -4,7 +4,8 @@
   "info": {
     "singularName": "chat-session",
     "pluralName": "chat-sessions",
-    "displayName": "Chat Session "
+    "displayName": "Ai Chat Session ",
+    "description": ""
   },
   "options": {
     "draftAndPublish": true
@@ -18,14 +19,21 @@
     },
     "user": {
       "type": "relation",
-      "relation": "oneToOne",
-      "target": "plugin::users-permissions.user"
-    },
-    "chat_message": {
-      "type": "relation",
       "relation": "manyToOne",
-      "target": "api::chat-message.chat-message",
+      "target": "plugin::users-permissions.user",
       "inversedBy": "chat_sessions"
+    },
+    "messages": {
+      "type": "relation",
+      "relation": "oneToMany", 
+      "target": "api::chat-message.chat-message",
+      "mappedBy": "session"
+    },
+    "startTime": { 
+      "type": "datetime"
+    },
+    "endTime": {
+      "type": "datetime"
     }
   }
 }

@@ -33,8 +33,7 @@
       "type": "relation",
       "relation": "manyToOne",
       "target": "api::product.product",
-      "inversedBy": "reviews",
-      "required": true
+      "inversedBy": "reviews"
     }
   }
 }

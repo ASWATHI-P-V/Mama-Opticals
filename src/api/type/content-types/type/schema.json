@@ -1,10 +1,10 @@
 {
   "kind": "collectionType",
-  "collectionName": "brands",
+  "collectionName": "types",
   "info": {
-    "singularName": "brand",
-    "pluralName": "brands",
-    "displayName": "Brand",
+    "singularName": "type",
+    "pluralName": "types",
+    "displayName": "Type",
     "description": ""
   },
   "options": {
@@ -13,11 +13,9 @@
   "pluginOptions": {},
   "attributes": {
     "name": {
-      "type": "string",
-      "unique": true,
-      "required": true
+      "type": "string"
     },
-    "Image": {
+    "image": {
       "allowedTypes": [
         "images",
         "files",

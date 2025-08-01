@@ -412,6 +412,80 @@ export interface ApiAddressAddress extends Schema.CollectionType {
   };
 }
 
+export interface ApiAiChatRecommendationAiChatRecommendation
+  extends Schema.CollectionType {
+  collectionName: 'ai_chat_recommendations';
+  info: {
+    displayName: 'Ai Chat Recommendation';
+    pluralName: 'ai-chat-recommendations';
+    singularName: 'ai-chat-recommendation';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    category: Attribute.String &
+      Attribute.SetMinMaxLength<{
+        maxLength: 100;
+      }>;
+    content: Attribute.Text & Attribute.Required;
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::ai-chat-recommendation.ai-chat-recommendation',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    keywords: Attribute.String &
+      Attribute.Private &
+      Attribute.SetMinMaxLength<{
+        maxLength: 255;
+      }>;
+    publishedAt: Attribute.DateTime;
+    title: Attribute.String;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::ai-chat-recommendation.ai-chat-recommendation',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+  };
+}
+
+export interface ApiBannerBanner extends Schema.CollectionType {
+  collectionName: 'banners';
+  info: {
+    description: '';
+    displayName: 'Banner';
+    pluralName: 'banners';
+    singularName: 'banner';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::banner.banner',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    image: Attribute.Media<'images' | 'files' | 'videos' | 'audios'> &
+      Attribute.Required;
+    isActive: Attribute.Boolean;
+    publishedAt: Attribute.DateTime;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::banner.banner',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+  };
+}
+
 export interface ApiBlogPostBlogPost extends Schema.CollectionType {
   collectionName: 'blog_posts';
   info: {
@@ -480,6 +554,7 @@ export interface ApiBrandBrand extends Schema.CollectionType {
       'admin::user'
     > &
       Attribute.Private;
+    Image: Attribute.Media<'images' | 'files' | 'videos' | 'audios'>;
     name: Attribute.String & Attribute.Required & Attribute.Unique;
     publishedAt: Attribute.DateTime;
     updatedAt: Attribute.DateTime;
@@ -564,7 +639,8 @@ export interface ApiCategoryCategory extends Schema.CollectionType {
 export interface ApiChatMessageChatMessage extends Schema.CollectionType {
   collectionName: 'chat_messages';
   info: {
-    displayName: 'Chat Message';
+    description: '';
+    displayName: 'Ai Chat Message';
     pluralName: 'chat-messages';
     singularName: 'chat-message';
   };
@@ -576,11 +652,6 @@ export interface ApiChatMessageChatMessage extends Schema.CollectionType {
       'images' | 'files' | 'videos' | 'audios',
       true
     >;
-    chat_sessions: Attribute.Relation<
-      'api::chat-message.chat-message',
-      'oneToMany',
-      'api::chat-session.chat-session'
-    >;
     createdAt: Attribute.DateTime;
     createdBy: Attribute.Relation<
       'api::chat-message.chat-message',
@@ -591,6 +662,11 @@ export interface ApiChatMessageChatMessage extends Schema.CollectionType {
     message: Attribute.Text & Attribute.Required;
     publishedAt: Attribute.DateTime;
     senderRole: Attribute.String & Attribute.Required;
+    session: Attribute.Relation<
+      'api::chat-message.chat-message',
+      'manyToOne',
+      'api::chat-session.chat-session'
+    >;
     timestamp: Attribute.DateTime;
     updatedAt: Attribute.DateTime;
     updatedBy: Attribute.Relation<
@@ -663,7 +739,8 @@ export interface ApiChatRecommendationChatRecommendation
 export interface ApiChatSessionChatSession extends Schema.CollectionType {
   collectionName: 'chat_sessions';
   info: {
-    displayName: 'Chat Session ';
+    description: '';
+    displayName: 'Ai Chat Session ';
     pluralName: 'chat-sessions';
     singularName: 'chat-session';
   };
@@ -671,11 +748,6 @@ export interface ApiChatSessionChatSession extends Schema.CollectionType {
     draftAndPublish: true;
   };
   attributes: {
-    chat_message: Attribute.Relation<
-      'api::chat-session.chat-session',
-      'manyToOne',
-      'api::chat-message.chat-message'
-    >;
     createdAt: Attribute.DateTime;
     createdBy: Attribute.Relation<
       'api::chat-session.chat-session',
@@ -683,8 +755,15 @@ export interface ApiChatSessionChatSession extends Schema.CollectionType {
       'admin::user'
     > &
       Attribute.Private;
+    endTime: Attribute.DateTime;
+    messages: Attribute.Relation<
+      'api::chat-session.chat-session',
+      'oneToMany',
+      'api::chat-message.chat-message'
+    >;
     publishedAt: Attribute.DateTime;
     session_id: Attribute.String & Attribute.Required & Attribute.Unique;
+    startTime: Attribute.DateTime;
     updatedAt: Attribute.DateTime;
     updatedBy: Attribute.Relation<
       'api::chat-session.chat-session',
@@ -694,9 +773,39 @@ export interface ApiChatSessionChatSession extends Schema.CollectionType {
       Attribute.Private;
     user: Attribute.Relation<
       'api::chat-session.chat-session',
-      'oneToOne',
+      'manyToOne',
       'plugin::users-permissions.user'
     >;
+  };
+}
+
+export interface ApiColorColor extends Schema.CollectionType {
+  collectionName: 'colors';
+  info: {
+    displayName: 'Color';
+    pluralName: 'colors';
+    singularName: 'color';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::color.color',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    name: Attribute.String;
+    publishedAt: Attribute.DateTime;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::color.color',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
   };
 }
 
@@ -1195,6 +1304,7 @@ export interface ApiProductProduct extends Schema.CollectionType {
     draftAndPublish: true;
   };
   attributes: {
+    best_seller: Attribute.Boolean & Attribute.DefaultTo<false>;
     brands: Attribute.Relation<
       'api::product.product',
       'oneToMany',
@@ -1205,7 +1315,11 @@ export interface ApiProductProduct extends Schema.CollectionType {
       'manyToOne',
       'api::category.category'
     >;
-    color: Attribute.String;
+    colors: Attribute.Relation<
+      'api::product.product',
+      'oneToMany',
+      'api::color.color'
+    >;
     createdAt: Attribute.DateTime;
     createdBy: Attribute.Relation<
       'api::product.product',
@@ -1293,6 +1407,11 @@ export interface ApiProductProduct extends Schema.CollectionType {
         number
       > &
       Attribute.DefaultTo<0>;
+    types: Attribute.Relation<
+      'api::product.product',
+      'oneToMany',
+      'api::type.type'
+    >;
     updatedAt: Attribute.DateTime;
     updatedBy: Attribute.Relation<
       'api::product.product',
@@ -1334,8 +1453,7 @@ export interface ApiReviewReview extends Schema.CollectionType {
       'api::review.review',
       'manyToOne',
       'api::product.product'
-    > &
-      Attribute.Required;
+    >;
     publishedAt: Attribute.DateTime;
     rating: Attribute.Integer &
       Attribute.Required &
@@ -1387,6 +1505,30 @@ export interface ApiSubcategorySubcategory extends Schema.CollectionType {
       'oneToOne',
       'admin::user'
     > &
+      Attribute.Private;
+  };
+}
+
+export interface ApiTypeType extends Schema.CollectionType {
+  collectionName: 'types';
+  info: {
+    description: '';
+    displayName: 'Type';
+    pluralName: 'types';
+    singularName: 'type';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<'api::type.type', 'oneToOne', 'admin::user'> &
+      Attribute.Private;
+    image: Attribute.Media<'images' | 'files' | 'videos' | 'audios'>;
+    name: Attribute.String;
+    publishedAt: Attribute.DateTime;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<'api::type.type', 'oneToOne', 'admin::user'> &
       Attribute.Private;
   };
 }
@@ -1817,6 +1959,11 @@ export interface PluginUsersPermissionsUser extends Schema.CollectionType {
       'api::address.address'
     >;
     blocked: Attribute.Boolean & Attribute.DefaultTo<false>;
+    chat_sessions: Attribute.Relation<
+      'plugin::users-permissions.user',
+      'oneToMany',
+      'api::chat-session.chat-session'
+    >;
     confirmationToken: Attribute.String & Attribute.Private;
     confirmed: Attribute.Boolean & Attribute.DefaultTo<false>;
     createdAt: Attribute.DateTime;
@@ -1901,6 +2048,8 @@ declare module '@strapi/types' {
       'admin::transfer-token-permission': AdminTransferTokenPermission;
       'admin::user': AdminUser;
       'api::address.address': ApiAddressAddress;
+      'api::ai-chat-recommendation.ai-chat-recommendation': ApiAiChatRecommendationAiChatRecommendation;
+      'api::banner.banner': ApiBannerBanner;
       'api::blog-post.blog-post': ApiBlogPostBlogPost;
       'api::brand.brand': ApiBrandBrand;
       'api::cart.cart': ApiCartCart;
@@ -1908,6 +2057,7 @@ declare module '@strapi/types' {
       'api::chat-message.chat-message': ApiChatMessageChatMessage;
       'api::chat-recommendation.chat-recommendation': ApiChatRecommendationChatRecommendation;
       'api::chat-session.chat-session': ApiChatSessionChatSession;
+      'api::color.color': ApiColorColor;
       'api::customer-support.customer-support': ApiCustomerSupportCustomerSupport;
       'api::eye-care-category.eye-care-category': ApiEyeCareCategoryEyeCareCategory;
       'api::eye-power.eye-power': ApiEyePowerEyePower;
@@ -1923,6 +2073,7 @@ declare module '@strapi/types' {
       'api::product.product': ApiProductProduct;
       'api::review.review': ApiReviewReview;
       'api::subcategory.subcategory': ApiSubcategorySubcategory;
+      'api::type.type': ApiTypeType;
       'api::video.video': ApiVideoVideo;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;

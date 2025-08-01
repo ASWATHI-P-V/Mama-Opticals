@@ -132,6 +132,12 @@
       "relation": "oneToMany",
       "target": "api::notification.notification",
       "mappedBy": "user"
-    }
+    },
+    "chat_sessions": {
+    "type": "relation",
+    "relation": "oneToMany",
+    "target": "api::chat-session.chat-session",
+    "mappedBy": "user"
+  }
   }
 }

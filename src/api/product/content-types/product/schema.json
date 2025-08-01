@@ -58,9 +58,6 @@
       "relation": "oneToMany",
       "target": "plugin::users-permissions.user"
     },
-    "color": {
-      "type": "string"
-    },
     "salesCount": {
       "type": "integer"
     },
@@ -134,6 +131,20 @@
       "relation": "oneToMany",
       "target": "api::review.review",
       "mappedBy": "product"
+    },
+    "colors": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::color.color"
+    },
+    "types": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::type.type"
+    },"best_seller": {
+      "type": "boolean",
+      "default": false,
+      "nullable": false
     }
   }
 }

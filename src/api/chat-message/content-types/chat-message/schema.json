@@ -4,18 +4,19 @@
   "info": {
     "singularName": "chat-message",
     "pluralName": "chat-messages",
-    "displayName": "Chat Message"
+    "displayName": "Ai Chat Message",
+    "description": ""
   },
   "options": {
     "draftAndPublish": true
   },
   "pluginOptions": {},
   "attributes": {
-    "chat_sessions": {
+    "session": {
       "type": "relation",
-      "relation": "oneToMany",
+      "relation": "manyToOne",
       "target": "api::chat-session.chat-session",
-      "mappedBy": "chat_message"
+      "inversedBy": "messages"
     },
     "senderRole": {
       "type": "string",
@@ -26,14 +27,15 @@
       "required": true
     },
     "attachments": {
+      "type": "media",
+      "multiple": true,
+      "required": false,
       "allowedTypes": [
         "images",
         "files",
         "videos",
         "audios"
-      ],
-      "type": "media",
-      "multiple": true
+      ]
     },
     "timestamp": {
       "type": "datetime"

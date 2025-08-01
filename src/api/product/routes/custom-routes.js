@@ -2,22 +2,6 @@
 
 module.exports = {
   routes: [
-    
-    // {
-    //   method: 'GET',
-    //   path: '/products',
-    //   handler: 'api::product.product.find',
-    //   config: { policies: [] },
-    // },
-    // {
-    //   method: 'GET',
-    //   path: '/products/:id',
-    //   handler: 'api::product.product.findOne',
-    //   config: { policies: [] },
-    // },
-    // ... other auto-generated routes
-
-   
     {
       method: 'GET',
       path: '/products',
