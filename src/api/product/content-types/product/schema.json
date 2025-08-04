@@ -32,7 +32,7 @@
     },
     "image": {
       "type": "media",
-      "multiple": false,
+      "multiple": true,
       "required": false,
       "allowedTypes": [
         "images",
@@ -141,7 +141,8 @@
       "type": "relation",
       "relation": "oneToMany",
       "target": "api::type.type"
-    },"best_seller": {
+    },
+    "best_seller": {
       "type": "boolean",
       "default": false,
       "nullable": false

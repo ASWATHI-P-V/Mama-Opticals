@@ -659,14 +659,20 @@ export interface ApiChatMessageChatMessage extends Schema.CollectionType {
       'admin::user'
     > &
       Attribute.Private;
-    message: Attribute.Text & Attribute.Required;
+    messageContent: Attribute.Text & Attribute.Required;
     publishedAt: Attribute.DateTime;
-    senderRole: Attribute.String & Attribute.Required;
-    session: Attribute.Relation<
+    receiver: Attribute.Relation<
       'api::chat-message.chat-message',
-      'manyToOne',
-      'api::chat-session.chat-session'
-    >;
+      'oneToOne',
+      'plugin::users-permissions.user'
+    > &
+      Attribute.Required;
+    sender: Attribute.Relation<
+      'api::chat-message.chat-message',
+      'oneToOne',
+      'plugin::users-permissions.user'
+    > &
+      Attribute.Required;
     timestamp: Attribute.DateTime;
     updatedAt: Attribute.DateTime;
     updatedBy: Attribute.Relation<
@@ -1348,7 +1354,7 @@ export interface ApiProductProduct extends Schema.CollectionType {
       'oneToMany',
       'api::frame-weight.frame-weight'
     >;
-    image: Attribute.Media<'images' | 'files' | 'videos' | 'audios'>;
+    image: Attribute.Media<'images' | 'files' | 'videos' | 'audios', true>;
     inStock: Attribute.Boolean;
     lens_coatings: Attribute.Relation<
       'api::product.product',

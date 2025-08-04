@@ -1,18 +1,10 @@
 "use strict";
 
-/**
- * cart controller
- */
 
 const { createCoreController } = require("@strapi/strapi").factories;
 const strapiUtils = require("@strapi/utils"); // Import strapiUtils to access ValidationError
 const { ValidationError, NotFoundError } = strapiUtils.errors; // Destructure specific errors
 
-// ===========================================================================
-// Helper Functions:
-// It's highly recommended to move these into a shared utility file (e.g., `utils/helpers.js` or `utils/errors.js`).
-// For this update, they are kept inline as per your provided context.
-// ===========================================================================
 const handleErrors = (error) => {
   console.error("Error occurred:", error);
   const errorMessage = String(error.message || '');
@@ -216,88 +208,184 @@ module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
     }
   },
 
-  // 3. Remove Product from Cart Method (UPDATED)
   async removeProductFromCart(ctx) {
-    try {
-      const { id: userId } = ctx.state.user;
-      const { productId } = ctx.params; // Product ID from URL parameters
-      // Safely access request body for optional decrement flag
-      const requestBody = ctx.request.body || {}; // Ensure requestBody is an object even if ctx.request.body is null/undefined
-      const { decrement = false } = requestBody.data || requestBody; // Safely destructure from data or direct body
-
-      // Find the specific cart entry for this user and product
-      let [cartEntry] = await strapi.entityService.findMany(
-        "api::cart.cart", // Your Cart UID (acting as CartItem)
-        { filters: { user: userId, product: productId } }
-      );
-
-      if (!cartEntry) {
-        throw new NotFoundError("Product not found in cart for this user.");
-      }
-
-      let message = "";
-      let responseData = null; // Default response if item is fully removed
-
-      // Handle decrementing quantity or full removal
-      if (decrement && cartEntry.quantity > 1) {
-        // Decrement quantity by 1
-        const updatedEntry = await strapi.entityService.update(
-          "api::cart.cart",
-          cartEntry.id,
-          {
-            data: {
-              quantity: cartEntry.quantity - 1,
-            },
-            // Populate to return the updated entry details consistent with addProductToCart's return
-            populate: {
-                product: {
-                    fields: ["id", "name", "price"],
-                    populate: {
-                        image: { fields: ["url", "name", "alternativeText"] },
-                    },
-                },
+        try {
+            // 1. Get User ID from authorization token (ctx.state.user)
+            const { id: userId } = ctx.state.user;
+            if (!userId) {
+                throw new ValidationError("User not authenticated.");
             }
-          }
-        );
-        message = "Product quantity decreased in cart.";
-        responseData = { // Mimicking addProductToCart's response structure
-            id: updatedEntry.id,
-            product_id: updatedEntry.product.id, // Include product_id
-            quantity: updatedEntry.quantity,
-            createdAt: updatedEntry.createdAt,
-            updatedAt: updatedEntry.updatedAt,
-            // Include product details if the client might need them on decrement
-            product_name: updatedEntry.product.name // Simplified product name
-        };
-      } else {
-        // Remove the entire cart entry (if decrement is false or quantity is 1)
-        await strapi.entityService.delete(
-          "api::cart.cart",
-          cartEntry.id
-        );
-        message = "Product removed from cart.";
-        responseData = { // Indicate which product was removed
-            product_id: productId,
-            user_id: userId,
-            message: "Product fully removed from cart."
-        };
-      }
 
-      // The response structure matches addProductToCart (details of the affected item, or null if removed)
-      return ctx.send({
-        success: true,
-        message: message,
-        data: responseData,
-      });
+            // 2. Get Product ID from URL parameters
+            const { productId } = ctx.params;
+            const parsedProductId = parseInt(productId, 10);
 
-    } catch (error) {
-      const customizedError = handleErrors(error);
-      return ctx.send(
-        { success: false, message: customizedError.message },
-        handleStatusCode(error) || 500
-      );
-    }
-  },
+            if (isNaN(parsedProductId)) {
+                throw new ValidationError("Invalid Product ID provided in URL. Must be a number.");
+            }
+
+            // 3. Determine if decrementing is requested from the QUERY PARAMETER
+            const { decrement } = ctx.query;
+            const shouldDecrement = decrement === 'true'; // Check for the string 'true'
+
+            // 4. Find the specific cart entry for this user and product
+            let [cartEntry] = await strapi.entityService.findMany(
+                "api::cart.cart", // Your Cart UID (acting as CartItem)
+                { filters: { user: userId, product: parsedProductId } }
+            );
+
+            // 5. If no cart entry found, throw an error
+            if (!cartEntry) {
+                throw new NotFoundError("Product not found in cart for this user.");
+            }
+
+            let message = "";
+            let responseData = null;
+
+            // 6. Handle decrementing quantity or full removal based on `shouldDecrement`
+            if (shouldDecrement && cartEntry.quantity > 1) {
+                // Decrement quantity by 1
+                const updatedEntry = await strapi.entityService.update(
+                    "api::cart.cart",
+                    cartEntry.id,
+                    {
+                        data: {
+                            quantity: cartEntry.quantity - 1,
+                        },
+                        populate: {
+                            product: {
+                                fields: ["id", "name", "price"],
+                                populate: {
+                                    image: { fields: ["url", "name", "alternativeText"] },
+                                },
+                            },
+                        }
+                    }
+                );
+                message = "Product quantity decreased in cart.";
+                responseData = {
+                    id: updatedEntry.id,
+                    product_id: updatedEntry.product.id,
+                    quantity: updatedEntry.quantity,
+                    createdAt: updatedEntry.createdAt,
+                    updatedAt: updatedEntry.updatedAt,
+                    product_name: updatedEntry.product.name,
+                    product_image: updatedEntry.product.image ? updatedEntry.product.image[0] : null
+                };
+            } else {
+                // Remove the entire cart entry (if `shouldDecrement` is false, or quantity is 1)
+                await strapi.entityService.delete(
+                    "api::cart.cart",
+                    cartEntry.id
+                );
+                message = "Product removed from cart.";
+                responseData = {
+                    product_id: parsedProductId,
+                    user_id: userId,
+                    message: "Product fully removed from cart."
+                };
+            }
+
+            // 7. Send the success response
+            return ctx.send({
+                success: true,
+                message: message,
+                data: responseData,
+            });
+
+        } catch (error) {
+            // 8. Handle any errors that occur during the process
+            const customizedError = handleErrors(error);
+            return ctx.send(
+                { success: false, message: customizedError.message },
+                handleStatusCode(error) || 500
+            );
+        }
+    },
+
+
+  // // 3. Remove Product from Cart Method (UPDATED)
+  // async removeProductFromCart(ctx) {
+  //   try {
+  //     const { id: userId } = ctx.state.user;
+  //     const { productId } = ctx.params; // Product ID from URL parameters
+  //     // Safely access request body for optional decrement flag
+  //     const requestBody = ctx.request.body || {}; // Ensure requestBody is an object even if ctx.request.body is null/undefined
+  //     const { decrement = false } = requestBody.data || requestBody; // Safely destructure from data or direct body
+
+  //     // Find the specific cart entry for this user and product
+  //     let [cartEntry] = await strapi.entityService.findMany(
+  //       "api::cart.cart", // Your Cart UID (acting as CartItem)
+  //       { filters: { user: userId, product: productId } }
+  //     );
+
+  //     if (!cartEntry) {
+  //       throw new NotFoundError("Product not found in cart for this user.");
+  //     }
+
+  //     let message = "";
+  //     let responseData = null; // Default response if item is fully removed
+
+  //     // Handle decrementing quantity or full removal
+  //     if (decrement && cartEntry.quantity > 1) {
+  //       // Decrement quantity by 1
+  //       const updatedEntry = await strapi.entityService.update(
+  //         "api::cart.cart",
+  //         cartEntry.id,
+  //         {
+  //           data: {
+  //             quantity: cartEntry.quantity - 1,
+  //           },
+  //           // Populate to return the updated entry details consistent with addProductToCart's return
+  //           populate: {
+  //               product: {
+  //                   fields: ["id", "name", "price"],
+  //                   populate: {
+  //                       image: { fields: ["url", "name", "alternativeText"] },
+  //                   },
+  //               },
+  //           }
+  //         }
+  //       );
+  //       message = "Product quantity decreased in cart.";
+  //       responseData = { // Mimicking addProductToCart's response structure
+  //           id: updatedEntry.id,
+  //           product_id: updatedEntry.product.id, // Include product_id
+  //           quantity: updatedEntry.quantity,
+  //           createdAt: updatedEntry.createdAt,
+  //           updatedAt: updatedEntry.updatedAt,
+  //           // Include product details if the client might need them on decrement
+  //           product_name: updatedEntry.product.name // Simplified product name
+  //       };
+  //     } else {
+  //       // Remove the entire cart entry (if decrement is false or quantity is 1)
+  //       await strapi.entityService.delete(
+  //         "api::cart.cart",
+  //         cartEntry.id
+  //       );
+  //       message = "Product removed from cart.";
+  //       responseData = { // Indicate which product was removed
+  //           product_id: productId,
+  //           user_id: userId,
+  //           message: "Product fully removed from cart."
+  //       };
+  //     }
+
+  //     // The response structure matches addProductToCart (details of the affected item, or null if removed)
+  //     return ctx.send({
+  //       success: true,
+  //       message: message,
+  //       data: responseData,
+  //     });
+
+  //   } catch (error) {
+  //     const customizedError = handleErrors(error);
+  //     return ctx.send(
+  //       { success: false, message: customizedError.message },
+  //       handleStatusCode(error) || 500
+  //     );
+  //   }
+  // },
 
   // 4. Clear Cart Method (UPDATED)
   async clearCart(ctx) {

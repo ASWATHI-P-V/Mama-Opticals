@@ -25,11 +25,11 @@
     },
     "messages": {
       "type": "relation",
-      "relation": "oneToMany", 
+      "relation": "oneToMany",
       "target": "api::chat-message.chat-message",
       "mappedBy": "session"
     },
-    "startTime": { 
+    "startTime": {
       "type": "datetime"
     },
     "endTime": {

@@ -12,17 +12,19 @@
   },
   "pluginOptions": {},
   "attributes": {
-    "session": {
+    "sender": {
       "type": "relation",
-      "relation": "manyToOne",
-      "target": "api::chat-session.chat-session",
-      "inversedBy": "messages"
-    },
-    "senderRole": {
-      "type": "string",
+      "relation": "oneToOne",
+      "target": "plugin::users-permissions.user",
       "required": true
     },
-    "message": {
+    "receiver": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "plugin::users-permissions.user",
+      "required": true
+    },
+    "messageContent": {
       "type": "text",
       "required": true
     },
