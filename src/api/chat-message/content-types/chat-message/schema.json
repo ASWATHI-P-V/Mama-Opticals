@@ -4,29 +4,34 @@
   "info": {
     "singularName": "chat-message",
     "pluralName": "chat-messages",
-    "displayName": "Ai Chat Message",
-    "description": ""
+    "displayName": "AI Chat Message",
+    "description": "Messages exchanged between a user and the AI expert."
   },
   "options": {
-    "draftAndPublish": true
+    "draftAndPublish": false,
+    "timestamps": true
   },
   "pluginOptions": {},
   "attributes": {
-    "sender": {
+    "user": {
       "type": "relation",
-      "relation": "oneToOne",
+      "relation": "manyToOne",
       "target": "plugin::users-permissions.user",
-      "required": true
-    },
-    "receiver": {
-      "type": "relation",
-      "relation": "oneToOne",
-      "target": "plugin::users-permissions.user",
-      "required": true
+      "inversedBy": "ai_chat_messages",
+      "required": true,
+      "private": false
     },
     "messageContent": {
       "type": "text",
-      "required": true
+      "required": true,
+      "private": false
+    },
+    "isFromAI": {
+      "type": "boolean",
+      "default": false,
+      "required": true,
+      "private": false,
+      "description": "True if the message was sent by the AI, false if by the user."
     },
     "attachments": {
       "type": "media",
@@ -37,10 +42,8 @@
         "files",
         "videos",
         "audios"
-      ]
-    },
-    "timestamp": {
-      "type": "datetime"
+      ],
+      "private": false
     }
   }
 }

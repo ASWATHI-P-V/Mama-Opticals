@@ -134,10 +134,16 @@
       "mappedBy": "user"
     },
     "chat_sessions": {
-    "type": "relation",
-    "relation": "oneToMany",
-    "target": "api::chat-session.chat-session",
-    "mappedBy": "user"
-  }
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::chat-session.chat-session",
+      "mappedBy": "user"
+    },
+    "ai_chat_messages": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::chat-message.chat-message",
+      "mappedBy": "user"
+    }
   }
 }

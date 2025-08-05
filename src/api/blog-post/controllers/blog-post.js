@@ -17,8 +17,16 @@ module.exports = createCoreController('api::blog-post.blog-post', ({ strapi }) =
       await this.validateQuery(ctx);
       const sanitizedQueryParams = await this.sanitizeQuery(ctx);
 
+      const populateFields = new Set(sanitizedQueryParams.populate || []);
+      populateFields.add('backgroundImage'); // Assuming you want to populate the backgroundImage field
+      populateFields.add("eye_care_category");
+      populateFields.add("relatedBlogPosts"); 
+
       // Fetch data using the core service
-      const { results, pagination } = await strapi.service('api::blog-post.blog-post').find(sanitizedQueryParams);
+      const { results, pagination } = await strapi.service('api::blog-post.blog-post').find({
+        ...sanitizedQueryParams,
+        populate: Array.from(populateFields),
+      });
 
       // Sanitize the output (removes private fields, etc.)
       const sanitizedResults = await this.sanitizeOutput(results, ctx);
@@ -61,10 +69,15 @@ module.exports = createCoreController('api::blog-post.blog-post', ({ strapi }) =
       await this.validateQuery(ctx);
       const sanitizedQueryParams = await this.sanitizeQuery(ctx);
 
+      const populateFields = new Set(sanitizedQueryParams.populate || []);
+      populateFields.add("backgroundImage");
+      populateFields.add("eye_care_category");
+      populateFields.add("relatedBlogPosts");
+
       // Find the blog post by slug
       const entity = await strapi.db.query('api::blog-post.blog-post').findOne({
         where: { slug },
-        populate: sanitizedQueryParams.populate // Apply population from context
+        populate: Array.from(populateFields) // Apply population from context
       });
 
       if (!entity) {

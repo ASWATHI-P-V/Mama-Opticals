@@ -22,11 +22,13 @@
       "type": "integer"
     },
     "inStock": {
-      "type": "boolean"
+      "type": "boolean",
+      "default": true,
+      "required": true
     },
     "stock": {
       "type": "integer",
-      "min": 0,
+      "min": 1,
       "default": 0,
       "required": true
     },
@@ -146,6 +148,11 @@
       "type": "boolean",
       "default": false,
       "nullable": false
+    },
+    "isActive": {
+      "type": "boolean",
+      "default": true,
+      "required": true
     }
   }
 }

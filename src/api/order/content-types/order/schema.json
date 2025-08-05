@@ -8,7 +8,7 @@
     "description": ""
   },
   "options": {
-    "draftAndPublish": true
+    "draftAndPublish": false
   },
   "pluginOptions": {},
   "attributes": {
@@ -20,6 +20,7 @@
       "enum": [
         "pending",
         "confirmed",
+        "shipped",
         "delivered",
         "cancelled"
       ]
@@ -38,9 +39,6 @@
     },
     "totalAmount": {
       "type": "decimal"
-    },
-    "shippingAddress": {
-      "type": "text"
     },
     "paymentMethod": {
       "type": "string"
@@ -63,6 +61,11 @@
     },
     "trackingId": {
       "type": "string"
+    },
+    "address": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::address.address"
     }
   }
 }

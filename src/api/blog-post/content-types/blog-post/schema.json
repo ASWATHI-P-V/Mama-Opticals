@@ -47,7 +47,10 @@
       "max": 5
     },
     "relatedBlogPosts": {
-      "type": "json"
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::blog-post.blog-post",
+      "inversedBy": "relatedBlogPosts"
     }
   }
 }

@@ -28,23 +28,6 @@ const handleErrors = (error, ctx) => {
 
 
 module.exports = createCoreController('api::chat-message.chat-message', ({ strapi }) => ({
-
-    /**
-     * Send Message API (User to AI or AI to User, based on `sender` and `receiver` in request body)
-     * POST /api/chat-messages
-     *
-     * Request Body Examples:
-     * 1. User sends to AI:
-     * { "sender": "13", "receiver": "expert", "messageContent": "Tell me a joke.", "attachments": [] }
-     * (Here, '13' is the authenticated user's ID)
-     *
-     * 2. Frontend stores AI's response:
-     * { "sender": "expert", "receiver": "13", "messageContent": "Why did the robot...", "attachments": [] }
-     * (Here, '13' is the authenticated user's ID)
-     *
-     * The `user` ID in the stored message is always the authenticated user's ID.
-     * The `isFromAI` field is determined by who the `sender` is in the request body.
-     */
     async create(ctx) {
         try {
             const { body, files } = ctx.request;
@@ -139,11 +122,9 @@ module.exports = createCoreController('api::chat-message.chat-message', ({ strap
         }
     },
 
-    /**
-     * List Messages API (for a specific user's conversation with the AI)
-     * GET /api/chat-messages?populate=user,attachments&sort=createdAt:asc
-     * Automatically filters messages by the authenticated user.
-     */
+ 
+    //   GET /api/chat-messages?populate=user,attachments&sort=createdAt:asc
+    
     async find(ctx) {
         try {
             const authenticatedUser = ctx.state.user;
@@ -168,11 +149,33 @@ module.exports = createCoreController('api::chat-message.chat-message', ({ strap
             const { results, pagination } = await strapi.service('api::chat-message.chat-message').find(sanitizedQueryParams);
             const sanitizedResults = await this.sanitizeOutput(results, ctx);
 
+            const restructuredMessages = sanitizedResults.map(message => {
+                const messageUser = message.user?.id;
+                
+                // Determine sender and receiver based on the isFromAI flag
+                let senderId, receiverId;
+                if (message.isFromAI) {
+                    senderId = "expert";
+                    receiverId = messageUser ? messageUser.toString() : null;
+                } else {
+                    senderId = messageUser ? messageUser.toString() : null;
+                    receiverId = "expert";
+                }
+
+                return {
+                    sender: senderId,
+                    receiver: receiverId,
+                    message: message.messageContent,
+                    timestamp: message.createdAt,
+                    attachments: message.attachments,
+                };
+            });
+            
             return ctx.send({
                 success: true,
                 message: `Chat messages for user ${userId} fetched successfully.`,
                 data: {
-                    messages: sanitizedResults,
+                    messages: restructuredMessages,
                     meta: pagination
                 }
             });

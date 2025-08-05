@@ -522,7 +522,11 @@ export interface ApiBlogPostBlogPost extends Schema.CollectionType {
         },
         number
       >;
-    relatedBlogPosts: Attribute.JSON;
+    relatedBlogPosts: Attribute.Relation<
+      'api::blog-post.blog-post',
+      'manyToMany',
+      'api::blog-post.blog-post'
+    >;
     slug: Attribute.String;
     title: Attribute.String;
     updatedAt: Attribute.DateTime;
@@ -576,7 +580,7 @@ export interface ApiCartCart extends Schema.CollectionType {
     singularName: 'cart';
   };
   options: {
-    draftAndPublish: true;
+    draftAndPublish: false;
   };
   attributes: {
     createdAt: Attribute.DateTime;
@@ -587,7 +591,6 @@ export interface ApiCartCart extends Schema.CollectionType {
       'oneToOne',
       'api::product.product'
     >;
-    publishedAt: Attribute.DateTime;
     quantity: Attribute.Integer;
     updatedAt: Attribute.DateTime;
     updatedBy: Attribute.Relation<'api::cart.cart', 'oneToOne', 'admin::user'> &
@@ -639,13 +642,14 @@ export interface ApiCategoryCategory extends Schema.CollectionType {
 export interface ApiChatMessageChatMessage extends Schema.CollectionType {
   collectionName: 'chat_messages';
   info: {
-    description: '';
-    displayName: 'Ai Chat Message';
+    description: 'Messages exchanged between a user and the AI expert.';
+    displayName: 'AI Chat Message';
     pluralName: 'chat-messages';
     singularName: 'chat-message';
   };
   options: {
-    draftAndPublish: true;
+    draftAndPublish: false;
+    timestamps: true;
   };
   attributes: {
     attachments: Attribute.Media<
@@ -659,21 +663,10 @@ export interface ApiChatMessageChatMessage extends Schema.CollectionType {
       'admin::user'
     > &
       Attribute.Private;
+    isFromAI: Attribute.Boolean &
+      Attribute.Required &
+      Attribute.DefaultTo<false>;
     messageContent: Attribute.Text & Attribute.Required;
-    publishedAt: Attribute.DateTime;
-    receiver: Attribute.Relation<
-      'api::chat-message.chat-message',
-      'oneToOne',
-      'plugin::users-permissions.user'
-    > &
-      Attribute.Required;
-    sender: Attribute.Relation<
-      'api::chat-message.chat-message',
-      'oneToOne',
-      'plugin::users-permissions.user'
-    > &
-      Attribute.Required;
-    timestamp: Attribute.DateTime;
     updatedAt: Attribute.DateTime;
     updatedBy: Attribute.Relation<
       'api::chat-message.chat-message',
@@ -681,6 +674,12 @@ export interface ApiChatMessageChatMessage extends Schema.CollectionType {
       'admin::user'
     > &
       Attribute.Private;
+    user: Attribute.Relation<
+      'api::chat-message.chat-message',
+      'manyToOne',
+      'plugin::users-permissions.user'
+    > &
+      Attribute.Required;
   };
 }
 
@@ -1255,9 +1254,14 @@ export interface ApiOrderOrder extends Schema.CollectionType {
     singularName: 'order';
   };
   options: {
-    draftAndPublish: true;
+    draftAndPublish: false;
   };
   attributes: {
+    address: Attribute.Relation<
+      'api::order.order',
+      'oneToOne',
+      'api::address.address'
+    >;
     createdAt: Attribute.DateTime;
     createdBy: Attribute.Relation<
       'api::order.order',
@@ -1275,11 +1279,9 @@ export interface ApiOrderOrder extends Schema.CollectionType {
       'manyToMany',
       'api::product.product'
     >;
-    publishedAt: Attribute.DateTime;
     shippedAt: Attribute.DateTime;
-    shippingAddress: Attribute.Text;
     status: Attribute.Enumeration<
-      ['pending', 'confirmed', 'delivered', 'cancelled']
+      ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled']
     >;
     totalAmount: Attribute.Decimal;
     trackingId: Attribute.String;
@@ -1355,7 +1357,10 @@ export interface ApiProductProduct extends Schema.CollectionType {
       'api::frame-weight.frame-weight'
     >;
     image: Attribute.Media<'images' | 'files' | 'videos' | 'audios', true>;
-    inStock: Attribute.Boolean;
+    inStock: Attribute.Boolean & Attribute.Required & Attribute.DefaultTo<true>;
+    isActive: Attribute.Boolean &
+      Attribute.Required &
+      Attribute.DefaultTo<true>;
     lens_coatings: Attribute.Relation<
       'api::product.product',
       'oneToMany',
@@ -1408,7 +1413,7 @@ export interface ApiProductProduct extends Schema.CollectionType {
       Attribute.Required &
       Attribute.SetMinMax<
         {
-          min: 0;
+          min: 1;
         },
         number
       > &
@@ -1564,7 +1569,11 @@ export interface ApiVideoVideo extends Schema.CollectionType {
       'api::eye-care-category.eye-care-category'
     >;
     publishedAt: Attribute.DateTime;
-    relatedVideos: Attribute.JSON;
+    relatedVideos: Attribute.Relation<
+      'api::video.video',
+      'manyToMany',
+      'api::video.video'
+    >;
     slug: Attribute.String;
     title: Attribute.String;
     updatedAt: Attribute.DateTime;
@@ -1574,6 +1583,7 @@ export interface ApiVideoVideo extends Schema.CollectionType {
       'admin::user'
     > &
       Attribute.Private;
+    video: Attribute.Media & Attribute.Required;
   };
 }
 
@@ -1963,6 +1973,11 @@ export interface PluginUsersPermissionsUser extends Schema.CollectionType {
       'plugin::users-permissions.user',
       'oneToMany',
       'api::address.address'
+    >;
+    ai_chat_messages: Attribute.Relation<
+      'plugin::users-permissions.user',
+      'oneToMany',
+      'api::chat-message.chat-message'
     >;
     blocked: Attribute.Boolean & Attribute.DefaultTo<false>;
     chat_sessions: Attribute.Relation<
