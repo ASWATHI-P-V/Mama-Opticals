@@ -215,13 +215,19 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
                         'lens_coatings',
                         'frame_weights',
                         'brands',
-                        'colors',
+                        
                         'frame_materials',
                         'frame_shapes',
                         'lens_thicknesses',
-                        'frame_sizes',
+                        
                         'reviews',
+                        'types',
                         'best_seller',
+                        {
+                            variants: {
+                                populate: ['color', 'frame_size']
+                            }
+                        }
                     ],
                 }
             );
@@ -250,18 +256,35 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
             const { query } = ctx;
             let filters = {};
             let sort = [];
-            let populate = [
-                'image', 'category', 'lens_types', 'lens_coatings', 'frame_weights',
-                'brands', 'colors', 'frame_materials', 'frame_shapes', 'lens_thicknesses',
-                'frame_sizes', 'reviews', 'best_seller',
-            ];
+             const populate = {
+                image: {
+                    limit: 1 
+                },
+                category: true,
+                lens_types: true,
+                lens_coatings: true,
+                frame_weights: true,
+                brands: true,
+                frame_materials: true,
+                frame_shapes: true,
+                lens_thicknesses: true,
+                reviews: true,
+                types: true,
+                best_seller: true,
+                variants: {
+                    populate: {
+                        color: true,
+                        frame_size: true
+                    }
+                }
+            };
 
             // --- 1. Search (using '_q' for fuzzy search across specified fields) ---
             if (query._q) {
                 filters.$or = [
                     { name: { $containsi: query._q } },
                     { description: { $containsi: query._q } },
-                    { colors: { name: { $containsi: query._q } } },
+                    { variants: { color: { name: { $containsi: query._q } } } },
                     { brands: { name: { $containsi: query._q } } },
                     { frame_materials: { name: { $containsi: query._q } } },
                     { frame_shapes: { name: { $containsi: query._q } } },
@@ -269,7 +292,7 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
                     { lens_coatings: { name: { $containsi: query._q } } },
                     { lens_thicknesses: { name: { $containsi: query._q } } },
                     { frame_weights: { name: { $containsi: query._q } } },
-                    { frame_sizes: { name: { $containsi: query._q } } },
+                    
                 ];
                 delete query._q;
             }
@@ -279,12 +302,8 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
             if (query.price_lte) { filters.price = { ...filters.price, $lte: parseFloat(query.price_lte) }; delete query.price_lte; }
             if (query.offerPrice_gte) { filters.offerPrice = { ...filters.offerPrice, $gte: parseFloat(query.offerPrice_gte) }; delete query.offerPrice_gte; }
             if (query.offerPrice_lte) { filters.offerPrice = { ...filters.offerPrice, $lte: parseFloat(query.offerPrice_lte) }; delete query.offerPrice_lte; }
-            if (query.inStock !== undefined) { filters.inStock = query.inStock.toLowerCase() === 'true'; delete query.inStock; }
             if (query.best_seller !== undefined) { filters.best_seller = query.best_seller.toLowerCase() === 'true'; delete query.best_seller; }
-            if (query.stock_gte) { filters.stock = { ...filters.stock, $gte: parseInt(query.stock_gte) }; delete query.stock_gte; }
-            if (query.stock_lte) { filters.stock = { ...filters.stock, $lte: parseInt(query.stock_lte) }; delete query.stock_lte; }
             if (query.category) { filters.category = { name: { $eqi: query.category } }; delete query.category; }
-            if (query.colors) { filters.colors = { name: { $eqi: query.colors } }; delete query.colors; }
             if (query.brands) { filters.brands = { name: { $eqi: query.brands } }; delete query.brands; }
             if (query.frame_materials) { filters.frame_materials = { name: { $eqi: query.frame_materials } }; delete query.frame_materials; }
             if (query.frame_shapes) { filters.frame_shapes = { name: { $eqi: query.frame_shapes } }; delete query.frame_shapes; }
@@ -292,10 +311,34 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
             if (query.lens_coatings) { filters.lens_coatings = { name: { $eqi: query.lens_coatings } }; delete query.lens_coatings; }
             if (query.lens_thicknesses) { filters.lens_thicknesses = { name: { $eqi: query.lens_thicknesses } }; delete query.lens_thicknesses; }
             if (query.frame_weights) { filters.frame_weights = { name: { $eqi: query.frame_weights } }; delete query.frame_weights; }
-            if (query.frame_sizes) { filters.frame_sizes = { name: { $eqi: query.frame_sizes } }; delete query.frame_sizes; }
             if (query.rating_gte) { filters.rating = { ...filters.rating, $gte: parseFloat(query.rating_gte) }; delete query.rating_gte; }
             if (query.rating_lte) { filters.rating = { ...filters.rating, $lte: parseFloat(query.rating_lte) }; delete query.rating_lte; }
-
+            if (query.inStock !== undefined) { 
+                // This logic is now on the variant
+                // To filter by inStock, you need to filter the product by the variants.inStock attribute
+                filters.variants = { ...filters.variants, inStock: query.inStock.toLowerCase() === 'true' };
+                delete query.inStock;
+            }
+            if (query.stock_gte) {
+                // This logic is now on the variant
+                filters.variants = { ...filters.variants, stock: { $gte: parseInt(query.stock_gte) } };
+                delete query.stock_gte;
+            }
+            if (query.stock_lte) {
+                // This logic is now on the variant
+                filters.variants = { ...filters.variants, stock: { $lte: parseInt(query.stock_lte) } };
+                delete query.stock_lte;
+            }
+            // UPDATED: Filter by color through the variants relation
+            if (query.colors) {
+                filters.variants = { ...filters.variants, color: { name: { $eqi: query.colors } } };
+                delete query.colors;
+            }
+            // UPDATED: Filter by size through the variants relation
+            if (query.frame_sizes) {
+                filters.variants = { ...filters.variants, frame_size: { name: { $eqi: query.frame_sizes } } };
+                delete query.frame_sizes;
+            }
             // --- 3. Sorting ---
             if (query._sort) {
                 const sortParams = Array.isArray(query._sort) ? query._sort : [query._sort];
@@ -334,6 +377,8 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
                     strapiUtils.sanitize.contentAPI.output(product, strapi.contentType('api::product.product'))
                 )
             );
+
+            
 
             return ctx.send({
                 success: true,

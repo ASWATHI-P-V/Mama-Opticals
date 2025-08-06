@@ -1300,6 +1300,63 @@ export interface ApiOrderOrder extends Schema.CollectionType {
   };
 }
 
+export interface ApiProductVariantProductVariant extends Schema.CollectionType {
+  collectionName: 'product_variants';
+  info: {
+    description: '';
+    displayName: 'Product Variant';
+    pluralName: 'product-variants';
+    singularName: 'product-variant';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    color: Attribute.Relation<
+      'api::product-variant.product-variant',
+      'oneToOne',
+      'api::color.color'
+    >;
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::product-variant.product-variant',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    frame_size: Attribute.Relation<
+      'api::product-variant.product-variant',
+      'oneToOne',
+      'api::frame-size.frame-size'
+    >;
+    inStock: Attribute.Boolean & Attribute.Required & Attribute.DefaultTo<true>;
+    isActive: Attribute.Boolean &
+      Attribute.Required &
+      Attribute.DefaultTo<true>;
+    product: Attribute.Relation<
+      'api::product-variant.product-variant',
+      'manyToOne',
+      'api::product.product'
+    >;
+    stock: Attribute.Integer &
+      Attribute.Required &
+      Attribute.SetMinMax<
+        {
+          min: 1;
+        },
+        number
+      > &
+      Attribute.DefaultTo<0>;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::product-variant.product-variant',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+  };
+}
+
 export interface ApiProductProduct extends Schema.CollectionType {
   collectionName: 'products';
   info: {
@@ -1311,8 +1368,12 @@ export interface ApiProductProduct extends Schema.CollectionType {
   options: {
     draftAndPublish: true;
   };
+  pluginOptions: {
+    i18n: {
+      localized: true;
+    };
+  };
   attributes: {
-    best_seller: Attribute.Boolean & Attribute.DefaultTo<false>;
     brands: Attribute.Relation<
       'api::product.product',
       'oneToMany',
@@ -1323,11 +1384,6 @@ export interface ApiProductProduct extends Schema.CollectionType {
       'manyToOne',
       'api::category.category'
     >;
-    colors: Attribute.Relation<
-      'api::product.product',
-      'oneToMany',
-      'api::color.color'
-    >;
     createdAt: Attribute.DateTime;
     createdBy: Attribute.Relation<
       'api::product.product',
@@ -1335,7 +1391,12 @@ export interface ApiProductProduct extends Schema.CollectionType {
       'admin::user'
     > &
       Attribute.Private;
-    description: Attribute.Text;
+    description: Attribute.Text &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
     frame_materials: Attribute.Relation<
       'api::product.product',
       'oneToMany',
@@ -1346,21 +1407,17 @@ export interface ApiProductProduct extends Schema.CollectionType {
       'oneToMany',
       'api::frame-shape.frame-shape'
     >;
-    frame_sizes: Attribute.Relation<
-      'api::product.product',
-      'oneToMany',
-      'api::frame-size.frame-size'
-    >;
     frame_weights: Attribute.Relation<
       'api::product.product',
       'oneToMany',
       'api::frame-weight.frame-weight'
     >;
-    image: Attribute.Media<'images' | 'files' | 'videos' | 'audios', true>;
-    inStock: Attribute.Boolean & Attribute.Required & Attribute.DefaultTo<true>;
-    isActive: Attribute.Boolean &
-      Attribute.Required &
-      Attribute.DefaultTo<true>;
+    image: Attribute.Media<'images' | 'files' | 'videos' | 'audios', true> &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
     lens_coatings: Attribute.Relation<
       'api::product.product',
       'oneToMany',
@@ -1376,17 +1433,48 @@ export interface ApiProductProduct extends Schema.CollectionType {
       'oneToMany',
       'api::lens-type.lens-type'
     >;
-    name: Attribute.String;
-    offerPrice: Attribute.Decimal;
-    offers: Attribute.Text;
+    locale: Attribute.String;
+    localizations: Attribute.Relation<
+      'api::product.product',
+      'oneToMany',
+      'api::product.product'
+    >;
+    name: Attribute.String &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    offerPrice: Attribute.Decimal &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    offers: Attribute.Text &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
     orders: Attribute.Relation<
       'api::product.product',
       'manyToMany',
       'api::order.order'
     >;
-    price: Attribute.Integer;
+    price: Attribute.Integer &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
     publishedAt: Attribute.DateTime;
     rating: Attribute.Decimal &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }> &
       Attribute.SetMinMax<
         {
           max: 5;
@@ -1396,6 +1484,11 @@ export interface ApiProductProduct extends Schema.CollectionType {
       > &
       Attribute.DefaultTo<0>;
     reviewCount: Attribute.Integer &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }> &
       Attribute.SetMinMax<
         {
           min: 0;
@@ -1408,16 +1501,12 @@ export interface ApiProductProduct extends Schema.CollectionType {
       'oneToMany',
       'api::review.review'
     >;
-    salesCount: Attribute.Integer;
-    stock: Attribute.Integer &
-      Attribute.Required &
-      Attribute.SetMinMax<
-        {
-          min: 1;
-        },
-        number
-      > &
-      Attribute.DefaultTo<0>;
+    salesCount: Attribute.Integer &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
     types: Attribute.Relation<
       'api::product.product',
       'oneToMany',
@@ -1430,6 +1519,11 @@ export interface ApiProductProduct extends Schema.CollectionType {
       'admin::user'
     > &
       Attribute.Private;
+    variants: Attribute.Relation<
+      'api::product.product',
+      'oneToMany',
+      'api::product-variant.product-variant'
+    >;
     wishlistedByUsers: Attribute.Relation<
       'api::product.product',
       'oneToMany',
@@ -2091,6 +2185,7 @@ declare module '@strapi/types' {
       'api::lens-type.lens-type': ApiLensTypeLensType;
       'api::notification.notification': ApiNotificationNotification;
       'api::order.order': ApiOrderOrder;
+      'api::product-variant.product-variant': ApiProductVariantProductVariant;
       'api::product.product': ApiProductProduct;
       'api::review.review': ApiReviewReview;
       'api::subcategory.subcategory': ApiSubcategorySubcategory;

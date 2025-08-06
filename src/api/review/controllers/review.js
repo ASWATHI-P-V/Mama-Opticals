@@ -8,7 +8,7 @@ const { ValidationError, NotFoundError } = strapiUtils.errors;
 
 const handleErrors = (error) => {
   console.error("Error occurred:", error);
-  const errorMessage = String(error.message || '');
+  const errorMessage = String(error.message || "");
 
   if (error.name === "ValidationError") {
     return { message: errorMessage };
@@ -37,7 +37,6 @@ const validateBodyRequiredFields = (body, fields) => {
   }
 };
 
-
 module.exports = createCoreController("api::review.review", ({ strapi }) => ({
   //MARK:Create a review
   async create(ctx) {
@@ -51,46 +50,68 @@ module.exports = createCoreController("api::review.review", ({ strapi }) => ({
       if (isNaN(rating) || rating < 1 || rating > 5) {
         throw new ValidationError("Rating must be an integer between 1 and 5.");
       }
-      if (comment && typeof comment !== 'string') {
+      if (comment && typeof comment !== "string") {
         throw new ValidationError("Comment must be a string.");
       }
 
       // Check if product exists
-      const productEntity = await strapi.entityService.findOne("api::product.product", product);
+      const productEntity = await strapi.entityService.findOne(
+        "api::product.product",
+        product
+      );
       if (!productEntity) {
         throw new NotFoundError("Product not found.");
       }
 
       // Check if user has already reviewed this product via this method
-      const existingReview = await strapi.entityService.findMany("api::review.review", {
-        filters: {
-          user: userId,
-          product: product,
-        },
-        limit: 1
-      });
+      const existingReview = await strapi.entityService.findMany(
+        "api::review.review",
+        {
+          filters: {
+            user: userId,
+            product: product,
+          },
+          limit: 1,
+        }
+      );
 
       if (existingReview.length > 0) {
-        throw new ValidationError("You have already submitted a review for this product. You can update it.");
+        throw new ValidationError(
+          "You have already submitted a review for this product"
+        );
       }
 
-      const newReview = await strapi.entityService.create("api::review.review", {
-        data: {
-          rating: parseInt(rating),
-          comment: comment || null,
-          user: userId,
-          product: product,
-          publishedAt: new Date(),
-        },
-        populate: ['user', 'product']
-      });
+      const newReview = await strapi.entityService.create(
+        "api::review.review",
+        {
+          data: {
+            rating: parseInt(rating),
+            comment: comment || null,
+            user: userId,
+            product: product,
+            publishedAt: new Date(),
+          },
+          populate: {
+            user: {
+              fields: ["id", "email", "name"],
+            },
+            product: {
+              fields: ["id", "name"],
+            },
+          },
+        }
+      );
 
       // --- START: Logic to update product rating and reviewCount on review creation ---
       const productId = newReview.product.id;
       // Fetch the product with all its reviews to recalculate
-      const updatedProductWithReviews = await strapi.entityService.findOne("api::product.product", productId, {
-        populate: ["reviews"]
-      });
+      const updatedProductWithReviews = await strapi.entityService.findOne(
+        "api::product.product",
+        productId,
+        {
+          populate: ["reviews"],
+        }
+      );
 
       if (updatedProductWithReviews) {
         const currentReviews = updatedProductWithReviews.reviews;
@@ -98,7 +119,10 @@ module.exports = createCoreController("api::review.review", ({ strapi }) => ({
 
         let newAverageRating = 0;
         if (newReviewCount > 0) {
-          const totalRatings = currentReviews.reduce((sum, r) => sum + r.rating, 0);
+          const totalRatings = currentReviews.reduce(
+            (sum, r) => sum + r.rating,
+            0
+          );
           newAverageRating = totalRatings / newReviewCount;
         }
 
@@ -125,8 +149,8 @@ module.exports = createCoreController("api::review.review", ({ strapi }) => ({
     }
   },
 
-  
-//MARK:Retrieve all reviews.
+  //MARK:Retrieve all reviews.
+
   async find(ctx) {
     try {
       // You can add custom logic here before fetching, e.g.,
@@ -134,7 +158,14 @@ module.exports = createCoreController("api::review.review", ({ strapi }) => ({
       // if (query.filters && query.filters.product) {
       //   // Special handling for filtering by product
       // }
-
+      ctx.query.populate =  {
+            user: {
+              fields: ["id", "email", "name"],
+            },
+            product: {
+              fields: ["id", "name"],
+            },
+          };
       // Call the default Strapi find method to handle querying, filtering, pagination, etc.
       const { data, meta } = await super.find(ctx);
 
@@ -153,12 +184,18 @@ module.exports = createCoreController("api::review.review", ({ strapi }) => ({
     }
   },
 
- 
   //MARK: Retrieve a single review
   async findOne(ctx) {
     try {
       const { id: reviewId } = ctx.params;
-
+      ctx.query.populate =  {
+            user: {
+              fields: ["id", "email", "name"],
+            },
+            product: {
+              fields: ["id", "name"],
+            },
+          };
       // Call the default Strapi findOne method
       const { data, meta } = await super.findOne(ctx);
 
@@ -181,7 +218,6 @@ module.exports = createCoreController("api::review.review", ({ strapi }) => ({
     }
   },
 
-  
   //MARK: Update a review
   async update(ctx) {
     try {
@@ -191,9 +227,13 @@ module.exports = createCoreController("api::review.review", ({ strapi }) => ({
       const { rating, comment } = requestData;
 
       // Fetch existing review to ensure it belongs to the user and get product ID
-      const existingReview = await strapi.entityService.findOne("api::review.review", reviewId, {
-        populate: ['user', 'product']
-      });
+      const existingReview = await strapi.entityService.findOne(
+        "api::review.review",
+        reviewId,
+        {
+          populate: ["user", "product"],
+        }
+      );
 
       if (!existingReview) {
         throw new NotFoundError("Review not found.");
@@ -201,34 +241,50 @@ module.exports = createCoreController("api::review.review", ({ strapi }) => ({
 
       // Ensure the user updating the review is the one who created it
       if (existingReview.user.id !== userId) {
-        throw new strapiUtils.errors.ForbiddenError("You are not authorized to update this review.");
+        throw new strapiUtils.errors.ForbiddenError(
+          "You are not authorized to update this review."
+        );
       }
 
       if (rating !== undefined) {
         if (isNaN(rating) || rating < 1 || rating > 5) {
-          throw new ValidationError("Rating must be an integer between 1 and 5.");
+          throw new ValidationError(
+            "Rating must be an integer between 1 and 5."
+          );
         }
       }
-      if (comment !== undefined && typeof comment !== 'string') {
+      if (comment !== undefined && typeof comment !== "string") {
         throw new ValidationError("Comment must be a string.");
       }
 
-      const updatedReview = await strapi.entityService.update("api::review.review", reviewId, {
-        data: {
-          rating: rating !== undefined ? parseInt(rating) : existingReview.rating,
-          comment: comment !== undefined ? comment : existingReview.comment,
-        },
-        populate: ['user', 'product']
-      });
+      const updatedReview = await strapi.entityService.update(
+        "api::review.review",
+        reviewId,
+        {
+          data: {
+            rating:
+              rating !== undefined ? parseInt(rating) : existingReview.rating,
+            comment: comment !== undefined ? comment : existingReview.comment,
+          },
+          populate: ["user", "product"],
+        }
+      );
 
       // Recalculate product's average rating after review update
       const productId = updatedReview.product.id;
-      const product = await strapi.entityService.findOne("api::product.product", productId, {
-        populate: ["reviews"]
-      });
+      const product = await strapi.entityService.findOne(
+        "api::product.product",
+        productId,
+        {
+          populate: ["reviews"],
+        }
+      );
 
       if (product && product.reviews.length > 0) {
-        const totalRatings = product.reviews.reduce((sum, r) => sum + r.rating, 0);
+        const totalRatings = product.reviews.reduce(
+          (sum, r) => sum + r.rating,
+          0
+        );
         const newAverageRating = totalRatings / product.reviews.length;
 
         await strapi.entityService.update("api::product.product", productId, {
@@ -252,16 +308,19 @@ module.exports = createCoreController("api::review.review", ({ strapi }) => ({
     }
   },
 
- 
   //MARK: Delete a review
   async delete(ctx) {
     try {
       const { id: reviewId } = ctx.params;
       const { id: userId } = ctx.state.user;
 
-      const existingReview = await strapi.entityService.findOne("api::review.review", reviewId, {
-        populate: ['user', 'product']
-      });
+      const existingReview = await strapi.entityService.findOne(
+        "api::review.review",
+        reviewId,
+        {
+          populate: ["user", "product"],
+        }
+      );
 
       if (!existingReview) {
         throw new NotFoundError("Review not found.");
@@ -269,7 +328,9 @@ module.exports = createCoreController("api::review.review", ({ strapi }) => ({
 
       // Ensure the user deleting the review is the one who created it
       if (existingReview.user.id !== userId) {
-        throw new strapiUtils.errors.ForbiddenError("You are not authorized to delete this review.");
+        throw new strapiUtils.errors.ForbiddenError(
+          "You are not authorized to delete this review."
+        );
       }
 
       const productId = existingReview.product.id;
@@ -277,16 +338,23 @@ module.exports = createCoreController("api::review.review", ({ strapi }) => ({
       await strapi.entityService.delete("api::review.review", reviewId);
 
       // Recalculate product's average rating after review deletion
-      const product = await strapi.entityService.findOne("api::product.product", productId, {
-        populate: ["reviews"]
-      });
+      const product = await strapi.entityService.findOne(
+        "api::product.product",
+        productId,
+        {
+          populate: ["reviews"],
+        }
+      );
 
       if (product) {
         const newReviewCount = product.reviews.length;
         let newAverageRating = 0;
 
         if (newReviewCount > 0) {
-          const totalRatings = product.reviews.reduce((sum, r) => sum + r.rating, 0);
+          const totalRatings = product.reviews.reduce(
+            (sum, r) => sum + r.rating,
+            0
+          );
           newAverageRating = totalRatings / newReviewCount;
         }
 

@@ -27,6 +27,9 @@ const handleErrors = (error) => {
   if (errorMessage.includes("User does not have a cart yet.")) {
     return { message: errorMessage };
   }
+  if (errorMessage.includes("product is currently not active")) {
+    return { message: errorMessage };
+  }
   return { message: "An unexpected error occurred." };
 };
 
@@ -39,6 +42,9 @@ const handleStatusCode = (error) => {
   }
   if (String(error.message || '').includes("Product not found in cart for this user.")) {
     return 404;
+  }
+  if (String(error.message || '').includes("product is currently not active")) {
+    return 400;
   }
   if (String(error.message || '').includes("Cart is already empty for this user.")) {
     return 200; // Informational success, no action needed
@@ -74,7 +80,7 @@ module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
               // Populate the product details including new fields
               fields: [
                 "id", "name", "price", "stock", "inStock",
-                "offers", "offerPrice", "rating", "reviewCount" // Added new fields
+                "offers", "offerPrice", "rating", "reviewCount", "isActive"
               ],
               populate: {
                 image: {
@@ -117,7 +123,7 @@ module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
     }
   },
 
-  // 2. Add Product to Cart Method
+  // 2. Add Product to Cart Method (Now also handles decrementing)
   async addProductToCart(ctx) {
     try {
       const { id: userId } = ctx.state.user;
@@ -126,35 +132,65 @@ module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
 
       validateBodyRequiredFields(requestBody.data || requestBody, ["productId", "quantity"]);
 
-      if (quantity <= 0) {
-        throw new ValidationError("Quantity must be a positive number.");
+      if (quantity === 0) {
+        throw new ValidationError("Quantity cannot be zero.");
       }
 
+      // Fetch the product with all required fields for validation
       const product = await strapi.entityService.findOne(
         "api::product.product",
         productId,
-        { fields: ["name", "price", "stock", "inStock"] } // Only fetch necessary fields for validation
+        { fields: ["name", "price", "stock", "inStock", "isActive"] }
       );
 
       if (!product) {
         throw new NotFoundError("Product not found.");
       }
 
-      let currentCartEntry = await strapi.entityService.findMany(
+      // --- NEW VALIDATION CHECKS ---
+      if (!product.isActive) {
+        throw new ValidationError("This product is currently not active and cannot be added to the cart.");
+      }
+      if (!product.inStock || product.stock < 1) {
+        throw new ValidationError("This product is out of stock.");
+      }
+      // --- END NEW VALIDATION CHECKS ---
+
+      let [currentCartEntry] = await strapi.entityService.findMany(
         "api::cart.cart",
         { filters: { user: userId, product: productId }, limit: 1 }
       );
-      const currentQuantityInCart = currentCartEntry.length > 0 ? currentCartEntry[0].quantity : 0;
-      const totalRequestedQuantity = currentQuantityInCart + quantity;
 
-      if (product.inStock === false || product.stock === undefined || product.stock < totalRequestedQuantity) {
-        throw new ValidationError(`Product ${product.name} is out of stock or insufficient quantity (Available: ${product.stock !== undefined ? product.stock : 'N/A'}, Requested: ${totalRequestedQuantity}).`);
+      const currentQuantityInCart = currentCartEntry ? currentCartEntry.quantity : 0;
+      const newTotalQuantity = currentQuantityInCart + quantity;
+
+      // Handle decrement logic
+      if (quantity < 0) {
+        if (!currentCartEntry) {
+          throw new NotFoundError("Product not found in cart for this user to decrement.");
+        }
+        if (newTotalQuantity < 0) {
+          throw new ValidationError("Cannot decrement quantity below zero.");
+        }
+        // If the new quantity is 0, remove the item
+        if (newTotalQuantity === 0) {
+          await strapi.entityService.delete("api::cart.cart", currentCartEntry.id);
+          return ctx.send({
+            success: true,
+            message: "Product quantity decreased to zero and removed from cart.",
+            data: { product_id: productId, user_id: userId }
+          });
+        }
+      }
+      // Handle increment logic
+      else if (newTotalQuantity > product.stock) {
+        throw new ValidationError(`Product ${product.name} is out of stock or insufficient quantity (Available: ${product.stock}, Requested: ${newTotalQuantity}).`);
       }
 
       let updatedCartEntry;
       let message = "";
 
-      if (currentCartEntry.length === 0) {
+      if (!currentCartEntry) {
         updatedCartEntry = await strapi.entityService.create(
           "api::cart.cart",
           {
@@ -163,16 +199,10 @@ module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
               product: productId,
               quantity: quantity,
             },
-            // Populate product details for the response
             populate: {
               product: {
-                fields: [
-                  "id", "name", "price", "stock", "inStock",
-                  "offers", "offerPrice", "rating", "reviewCount" // Added new fields
-                ],
-                populate: {
-                  image: { fields: ["url", "name", "alternativeText"] },
-                },
+                fields: ["id", "name", "price", "offers", "offerPrice", "rating", "reviewCount"],
+                populate: { image: { fields: ["url"] } },
               },
             },
           }
@@ -181,26 +211,20 @@ module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
       } else {
         updatedCartEntry = await strapi.entityService.update(
           "api::cart.cart",
-          currentCartEntry[0].id,
+          currentCartEntry.id,
           {
             data: {
-              quantity: totalRequestedQuantity,
+              quantity: newTotalQuantity,
             },
-            // Populate product details for the response
             populate: {
               product: {
-                fields: [
-                  "id", "name", "price", "stock", "inStock",
-                  "offers", "offerPrice", "rating", "reviewCount" // Added new fields
-                ],
-                populate: {
-                  image: { fields: ["url", "name", "alternativeText"] },
-                },
+                fields: ["id", "name", "price", "offers", "offerPrice", "rating", "reviewCount"],
+                populate: { image: { fields: ["url"] } },
               },
             },
           }
         );
-        message = "Product quantity updated in cart.";
+        message = quantity > 0 ? "Product quantity updated in cart." : "Product quantity decreased in cart.";
       }
 
       return ctx.send({
@@ -210,15 +234,13 @@ module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
           id: updatedCartEntry.id,
           product_id: updatedCartEntry.product.id,
           quantity: updatedCartEntry.quantity,
-          createdAt: updatedCartEntry.createdAt,
-          updatedAt: updatedCartEntry.updatedAt,
           product_name: updatedCartEntry.product.name,
-          product_price: updatedCartEntry.product.price, // Include price
-          product_offers: updatedCartEntry.product.offers, // Include offers
-          product_offerPrice: updatedCartEntry.product.offerPrice, // Include offerPrice
-          product_rating: updatedCartEntry.product.rating, // Include rating
-          product_reviewCount: updatedCartEntry.product.reviewCount, // Include reviewCount
-          product_image: updatedCartEntry.product.image ? updatedCartEntry.product.image[0] : null
+          product_price: updatedCartEntry.product.price,
+          product_offers: updatedCartEntry.product.offers,
+          product_offerPrice: updatedCartEntry.product.offerPrice,
+          product_rating: updatedCartEntry.product.rating,
+          product_reviewCount: updatedCartEntry.product.reviewCount,
+          product_image: updatedCartEntry.product.image ? updatedCartEntry.product.image[0] : null,
         },
       });
     } catch (error) {
@@ -230,6 +252,7 @@ module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
     }
   },
 
+  // 3. Remove Product From Cart (Now only handles full removal)
   async removeProductFromCart(ctx) {
     try {
       const { id: userId } = ctx.state.user;
@@ -244,9 +267,6 @@ module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
         throw new ValidationError("Invalid Product ID provided in URL. Must be a number.");
       }
 
-      const { decrement } = ctx.query;
-      const shouldDecrement = decrement === 'true';
-
       let [cartEntry] = await strapi.entityService.findMany(
         "api::cart.cart",
         { filters: { user: userId, product: parsedProductId } }
@@ -256,62 +276,18 @@ module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
         throw new NotFoundError("Product not found in cart for this user.");
       }
 
-      let message = "";
-      let responseData = null;
-
-      if (shouldDecrement && cartEntry.quantity > 1) {
-        const updatedEntry = await strapi.entityService.update(
-          "api::cart.cart",
-          cartEntry.id,
-          {
-            data: {
-              quantity: cartEntry.quantity - 1,
-            },
-            // Populate product details for the response
-            populate: {
-              product: {
-                fields: [
-                  "id", "name", "price", "offers", "offerPrice", "rating", "reviewCount" // Added new fields
-                ],
-                populate: {
-                  image: { fields: ["url", "name", "alternativeText"] },
-                },
-              },
-            },
-          }
-        );
-        message = "Product quantity decreased in cart.";
-        responseData = {
-          id: updatedEntry.id,
-          product_id: updatedEntry.product.id,
-          quantity: updatedEntry.quantity,
-          createdAt: updatedEntry.createdAt,
-          updatedAt: updatedEntry.updatedAt,
-          product_name: updatedEntry.product.name,
-          product_price: updatedEntry.product.price,
-          product_offers: updatedEntry.product.offers, // Include offers
-          product_offerPrice: updatedEntry.product.offerPrice, // Include offerPrice
-          product_rating: updatedEntry.product.rating, // Include rating
-          product_reviewCount: updatedEntry.product.reviewCount, // Include reviewCount
-          product_image: updatedEntry.product.image ? updatedEntry.product.image[0] : null
-        };
-      } else {
-        await strapi.entityService.delete(
-          "api::cart.cart",
-          cartEntry.id
-        );
-        message = "Product removed from cart.";
-        responseData = {
-          product_id: parsedProductId,
-          user_id: userId,
-          message: "Product fully removed from cart."
-        };
-      }
+      await strapi.entityService.delete(
+        "api::cart.cart",
+        cartEntry.id
+      );
 
       return ctx.send({
         success: true,
-        message: message,
-        data: responseData,
+        message: "Product removed from cart.",
+        data: {
+          product_id: parsedProductId,
+          user_id: userId,
+        },
       });
 
     } catch (error) {
@@ -322,15 +298,13 @@ module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
       );
     }
   },
-  
-  // 4. Clear Cart Method (UPDATED)
+
+  // 4. Clear Cart Method (No changes needed)
   async clearCart(ctx) {
     try {
       const { id: userId } = ctx.state.user;
-
-      // Find all cart entries for the user
       const cartEntries = await strapi.entityService.findMany(
-        "api::cart.cart", // Your Cart UID (acting as CartItem)
+        "api::cart.cart",
         { filters: { user: userId } }
       );
 
@@ -345,7 +319,6 @@ module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
         });
       }
 
-      // Delete all found cart entries for the user
       for (const entry of cartEntries) {
         await strapi.entityService.delete("api::cart.cart", entry.id);
       }
@@ -354,8 +327,8 @@ module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
         success: true,
         message: "Cart cleared successfully.",
         data: {
-            user_id: userId,
-            message: "All items removed from cart."
+          user_id: userId,
+          message: "All items removed from cart."
         },
       });
     } catch (error) {
@@ -367,6 +340,381 @@ module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
     }
   },
 }));
+
+
+
+
+
+
+// "use strict";
+
+// const { createCoreController } = require("@strapi/strapi").factories;
+// const strapiUtils = require("@strapi/utils");
+// const { ValidationError, NotFoundError } = strapiUtils.errors;
+
+// const handleErrors = (error) => {
+//   console.error("Error occurred:", error);
+//   const errorMessage = String(error.message || '');
+
+//   if (error instanceof ValidationError) {
+//     return { message: errorMessage };
+//   }
+//   if (error instanceof NotFoundError) {
+//     return { message: errorMessage };
+//   }
+//   // Catch custom messages for consistency
+//   if (errorMessage.includes("out of stock or insufficient quantity")) {
+//     return { message: errorMessage };
+//   }
+//   if (errorMessage.includes("Product not found in cart for this user.")) {
+//     return { message: errorMessage };
+//   }
+//   if (errorMessage.includes("Cart is already empty for this user.")) {
+//     return { message: errorMessage };
+//   }
+//   if (errorMessage.includes("User does not have a cart yet.")) {
+//     return { message: errorMessage };
+//   }
+//   return { message: "An unexpected error occurred." };
+// };
+
+// const handleStatusCode = (error) => {
+//   if (error instanceof ValidationError) return 400;
+//   if (error instanceof NotFoundError) return 404;
+//   // Custom error messages might map to 400 Bad Request
+//   if (String(error.message || '').includes("out of stock or insufficient quantity")) {
+//     return 400;
+//   }
+//   if (String(error.message || '').includes("Product not found in cart for this user.")) {
+//     return 404;
+//   }
+//   if (String(error.message || '').includes("Cart is already empty for this user.")) {
+//     return 200; // Informational success, no action needed
+//   }
+//   if (String(error.message || '').includes("User does not have a cart yet.")) {
+//     return 200; // Informational success, no cart to show
+//   }
+//   return 500;
+// };
+
+// const validateBodyRequiredFields = (body, fields) => {
+//   const missingFields = fields.filter(field => !body[field]);
+//   if (missingFields.length > 0) {
+//     throw new ValidationError(`Missing required fields: ${missingFields.join(', ')}`);
+//   }
+// };
+// // --- END Helper functions ---
+
+// module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
+//   // 1. Get User's Cart Method
+//   async getMyCart(ctx) {
+//     try {
+//       const { id: userId } = ctx.state.user; // Get authenticated user ID
+
+//       const cart = await strapi.entityService.findMany(
+//         "api::cart.cart", // Your Cart UID
+//         {
+//           filters: {
+//             user: userId, // Filter by the current user's ID
+//           },
+//           populate: {
+//             product: {
+//               // Populate the product details including new fields
+//               fields: [
+//                 "id", "name", "price", "stock", "inStock",
+//                 "offers", "offerPrice", "rating", "reviewCount" // Added new fields
+//               ],
+//               populate: {
+//                 image: {
+//                   fields: ["url", "name", "alternativeText"],
+//                 },
+//               },
+//             },
+//             user: {
+//               fields: ["id", "email", "phone", "name"],
+//             },
+//           },
+//         }
+//       );
+
+//       if (!cart || cart.length === 0) {
+//         return ctx.send({
+//           success: true,
+//           message: "User does not have a cart yet or cart is empty.",
+//           data: {
+//             cart_items: [],
+//             total_items: 0
+//           },
+//         });
+//       }
+
+//       return ctx.send({
+//         success: true,
+//         message: "Cart retrieved successfully",
+//         data: {
+//           cart_items: cart,
+//           total_items: cart.length
+//         },
+//       });
+//     } catch (error) {
+//       const customizedError = handleErrors(error);
+//       return ctx.send(
+//         { success: false, message: customizedError.message },
+//         handleStatusCode(error) || 500
+//       );
+//     }
+//   },
+
+//   // 2. Add Product to Cart Method
+//   async addProductToCart(ctx) {
+//     try {
+//       const { id: userId } = ctx.state.user;
+//       const requestBody = ctx.request.body || {};
+//       const { productId, quantity } = requestBody.data || requestBody;
+
+//       validateBodyRequiredFields(requestBody.data || requestBody, ["productId", "quantity"]);
+
+//       if (quantity <= 0) {
+//         throw new ValidationError("Quantity must be a positive number.");
+//       }
+
+//       const product = await strapi.entityService.findOne(
+//         "api::product.product",
+//         productId,
+//         { fields: ["name", "price", "stock", "inStock"] } // Only fetch necessary fields for validation
+//       );
+
+//       if (!product) {
+//         throw new NotFoundError("Product not found.");
+//       }
+
+//       let currentCartEntry = await strapi.entityService.findMany(
+//         "api::cart.cart",
+//         { filters: { user: userId, product: productId }, limit: 1 }
+//       );
+//       const currentQuantityInCart = currentCartEntry.length > 0 ? currentCartEntry[0].quantity : 0;
+//       const totalRequestedQuantity = currentQuantityInCart + quantity;
+
+//       if (product.inStock === false || product.stock === undefined || product.stock < totalRequestedQuantity) {
+//         throw new ValidationError(`Product ${product.name} is out of stock or insufficient quantity (Available: ${product.stock !== undefined ? product.stock : 'N/A'}, Requested: ${totalRequestedQuantity}).`);
+//       }
+
+//       let updatedCartEntry;
+//       let message = "";
+
+//       if (currentCartEntry.length === 0) {
+//         updatedCartEntry = await strapi.entityService.create(
+//           "api::cart.cart",
+//           {
+//             data: {
+//               user: userId,
+//               product: productId,
+//               quantity: quantity,
+//             },
+//             // Populate product details for the response
+//             populate: {
+//               product: {
+//                 fields: [
+//                   "id", "name", "price", "stock", "inStock",
+//                   "offers", "offerPrice", "rating", "reviewCount" // Added new fields
+//                 ],
+//                 populate: {
+//                   image: { fields: ["url", "name", "alternativeText"] },
+//                 },
+//               },
+//             },
+//           }
+//         );
+//         message = "Product added to cart.";
+//       } else {
+//         updatedCartEntry = await strapi.entityService.update(
+//           "api::cart.cart",
+//           currentCartEntry[0].id,
+//           {
+//             data: {
+//               quantity: totalRequestedQuantity,
+//             },
+//             // Populate product details for the response
+//             populate: {
+//               product: {
+//                 fields: [
+//                   "id", "name", "price", "stock", "inStock",
+//                   "offers", "offerPrice", "rating", "reviewCount" // Added new fields
+//                 ],
+//                 populate: {
+//                   image: { fields: ["url", "name", "alternativeText"] },
+//                 },
+//               },
+//             },
+//           }
+//         );
+//         message = "Product quantity updated in cart.";
+//       }
+
+//       return ctx.send({
+//         success: true,
+//         message: message,
+//         data: {
+//           id: updatedCartEntry.id,
+//           product_id: updatedCartEntry.product.id,
+//           quantity: updatedCartEntry.quantity,
+//           createdAt: updatedCartEntry.createdAt,
+//           updatedAt: updatedCartEntry.updatedAt,
+//           product_name: updatedCartEntry.product.name,
+//           product_price: updatedCartEntry.product.price, // Include price
+//           product_offers: updatedCartEntry.product.offers, // Include offers
+//           product_offerPrice: updatedCartEntry.product.offerPrice, // Include offerPrice
+//           product_rating: updatedCartEntry.product.rating, // Include rating
+//           product_reviewCount: updatedCartEntry.product.reviewCount, // Include reviewCount
+//           product_image: updatedCartEntry.product.image ? updatedCartEntry.product.image[0] : null
+//         },
+//       });
+//     } catch (error) {
+//       const customizedError = handleErrors(error);
+//       return ctx.send(
+//         { success: false, message: customizedError.message },
+//         handleStatusCode(error) || 500
+//       );
+//     }
+//   },
+
+//   async removeProductFromCart(ctx) {
+//     try {
+//       const { id: userId } = ctx.state.user;
+//       if (!userId) {
+//         throw new ValidationError("User not authenticated.");
+//       }
+
+//       const { productId } = ctx.params;
+//       const parsedProductId = parseInt(productId, 10);
+
+//       if (isNaN(parsedProductId)) {
+//         throw new ValidationError("Invalid Product ID provided in URL. Must be a number.");
+//       }
+
+//       const { decrement } = ctx.query;
+//       const shouldDecrement = decrement === 'true';
+
+//       let [cartEntry] = await strapi.entityService.findMany(
+//         "api::cart.cart",
+//         { filters: { user: userId, product: parsedProductId } }
+//       );
+
+//       if (!cartEntry) {
+//         throw new NotFoundError("Product not found in cart for this user.");
+//       }
+
+//       let message = "";
+//       let responseData = null;
+
+//       if (shouldDecrement && cartEntry.quantity > 1) {
+//         const updatedEntry = await strapi.entityService.update(
+//           "api::cart.cart",
+//           cartEntry.id,
+//           {
+//             data: {
+//               quantity: cartEntry.quantity - 1,
+//             },
+//             // Populate product details for the response
+//             populate: {
+//               product: {
+//                 fields: [
+//                   "id", "name", "price", "offers", "offerPrice", "rating", "reviewCount" // Added new fields
+//                 ],
+//                 populate: {
+//                   image: { fields: ["url", "name", "alternativeText"] },
+//                 },
+//               },
+//             },
+//           }
+//         );
+//         message = "Product quantity decreased in cart.";
+//         responseData = {
+//           id: updatedEntry.id,
+//           product_id: updatedEntry.product.id,
+//           quantity: updatedEntry.quantity,
+//           createdAt: updatedEntry.createdAt,
+//           updatedAt: updatedEntry.updatedAt,
+//           product_name: updatedEntry.product.name,
+//           product_price: updatedEntry.product.price,
+//           product_offers: updatedEntry.product.offers, // Include offers
+//           product_offerPrice: updatedEntry.product.offerPrice, // Include offerPrice
+//           product_rating: updatedEntry.product.rating, // Include rating
+//           product_reviewCount: updatedEntry.product.reviewCount, // Include reviewCount
+//           product_image: updatedEntry.product.image ? updatedEntry.product.image[0] : null
+//         };
+//       } else {
+//         await strapi.entityService.delete(
+//           "api::cart.cart",
+//           cartEntry.id
+//         );
+//         message = "Product removed from cart.";
+//         responseData = {
+//           product_id: parsedProductId,
+//           user_id: userId,
+//           message: "Product fully removed from cart."
+//         };
+//       }
+
+//       return ctx.send({
+//         success: true,
+//         message: message,
+//         data: responseData,
+//       });
+
+//     } catch (error) {
+//       const customizedError = handleErrors(error);
+//       return ctx.send(
+//         { success: false, message: customizedError.message },
+//         handleStatusCode(error) || 500
+//       );
+//     }
+//   },
+  
+//   // 4. Clear Cart Method (UPDATED)
+//   async clearCart(ctx) {
+//     try {
+//       const { id: userId } = ctx.state.user;
+
+//       // Find all cart entries for the user
+//       const cartEntries = await strapi.entityService.findMany(
+//         "api::cart.cart", // Your Cart UID (acting as CartItem)
+//         { filters: { user: userId } }
+//       );
+
+//       if (!cartEntries || cartEntries.length === 0) {
+//         return ctx.send({
+//           success: true,
+//           message: "Cart is already empty for this user.",
+//           data: {
+//             user_id: userId,
+//             message: "No items to clear."
+//           },
+//         });
+//       }
+
+//       // Delete all found cart entries for the user
+//       for (const entry of cartEntries) {
+//         await strapi.entityService.delete("api::cart.cart", entry.id);
+//       }
+
+//       return ctx.send({
+//         success: true,
+//         message: "Cart cleared successfully.",
+//         data: {
+//             user_id: userId,
+//             message: "All items removed from cart."
+//         },
+//       });
+//     } catch (error) {
+//       const customizedError = handleErrors(error);
+//       return ctx.send(
+//         { success: false, message: customizedError.message },
+//         handleStatusCode(error) || 500
+//       );
+//     }
+//   },
+// }));
 
 // "use strict";
 

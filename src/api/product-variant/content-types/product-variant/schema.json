@@ -1,0 +1,47 @@
+{
+  "kind": "collectionType",
+  "collectionName": "product_variants",
+  "info": {
+    "singularName": "product-variant",
+    "pluralName": "product-variants",
+    "displayName": "Product Variant",
+    "description": ""
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "product": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::product.product",
+      "inversedBy": "variants"
+    },
+    "color": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::color.color"
+    },
+    "frame_size": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::frame-size.frame-size"
+    },
+    "inStock": {
+      "type": "boolean",
+      "required": true,
+      "default": true
+    },
+    "stock": {
+      "type": "integer",
+      "min": 1,
+      "default": 0,
+      "required": true
+    },
+    "isActive": {
+      "type": "boolean",
+      "default": true,
+      "required": true
+    }
+  }
+}

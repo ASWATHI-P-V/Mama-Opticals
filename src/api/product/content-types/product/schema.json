@@ -10,27 +10,35 @@
   "options": {
     "draftAndPublish": true
   },
-  "pluginOptions": {},
+  "pluginOptions": {
+    "i18n": {
+      "localized": true
+    }
+  },
   "attributes": {
     "name": {
-      "type": "string"
+      "type": "string",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     },
     "description": {
-      "type": "text"
+      "type": "text",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     },
     "price": {
-      "type": "integer"
-    },
-    "inStock": {
-      "type": "boolean",
-      "default": true,
-      "required": true
-    },
-    "stock": {
       "type": "integer",
-      "min": 1,
-      "default": 0,
-      "required": true
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     },
     "image": {
       "type": "media",
@@ -41,7 +49,12 @@
         "files",
         "videos",
         "audios"
-      ]
+      ],
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     },
     "category": {
       "type": "relation",
@@ -61,7 +74,12 @@
       "target": "plugin::users-permissions.user"
     },
     "salesCount": {
-      "type": "integer"
+      "type": "integer",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     },
     "lens_types": {
       "type": "relation",
@@ -98,35 +116,50 @@
       "relation": "oneToMany",
       "target": "api::lens-thickness.lens-thickness"
     },
-    "frame_sizes": {
-      "type": "relation",
-      "relation": "oneToMany",
-      "target": "api::frame-size.frame-size"
-    },
     "rating": {
       "type": "decimal",
       "min": 0,
       "max": 5,
       "default": 0,
       "required": false,
-      "description": "Average user rating for the product"
+      "description": "Average user rating for the product",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     },
     "reviewCount": {
       "type": "integer",
       "min": 0,
       "default": 0,
       "required": false,
-      "description": "Number of reviews for the product"
+      "description": "Number of reviews for the product",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     },
     "offers": {
       "type": "text",
       "required": false,
-      "description": "Details about current offers or promotions (e.g., 'Up to 20% off')"
+      "description": "Details about current offers or promotions (e.g., 'Up to 20% off')",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     },
     "offerPrice": {
       "type": "decimal",
       "required": false,
-      "description": "Discounted price if an offer is active"
+      "description": "Discounted price if an offer is active",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     },
     "reviews": {
       "type": "relation",
@@ -134,25 +167,16 @@
       "target": "api::review.review",
       "mappedBy": "product"
     },
-    "colors": {
-      "type": "relation",
-      "relation": "oneToMany",
-      "target": "api::color.color"
-    },
     "types": {
       "type": "relation",
       "relation": "oneToMany",
       "target": "api::type.type"
     },
-    "best_seller": {
-      "type": "boolean",
-      "default": false,
-      "nullable": false
-    },
-    "isActive": {
-      "type": "boolean",
-      "default": true,
-      "required": true
+    "variants": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::product-variant.product-variant",
+      "mappedBy": "product"
     }
   }
 }
