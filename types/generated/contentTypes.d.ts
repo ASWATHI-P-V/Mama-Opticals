@@ -1412,10 +1412,10 @@ export interface ApiProductProduct extends Schema.CollectionType {
       'oneToMany',
       'api::frame-weight.frame-weight'
     >;
-    image: Attribute.Media<'images' | 'files' | 'videos' | 'audios', true> &
+    image: Attribute.Media<'images', true> &
       Attribute.SetPluginOptions<{
         i18n: {
-          localized: true;
+          localized: false;
         };
       }>;
     lens_coatings: Attribute.Relation<
