@@ -4,15 +4,25 @@
   "info": {
     "singularName": "frame-size",
     "pluralName": "frame-sizes",
-    "displayName": "Frame Size"
+    "displayName": "Frame Size",
+    "description": ""
   },
   "options": {
     "draftAndPublish": true
   },
-  "pluginOptions": {},
+  "pluginOptions": {
+    "i18n": {
+      "localized": true
+    }
+  },
   "attributes": {
     "name": {
-      "type": "string"
+      "type": "string",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     }
   }
 }

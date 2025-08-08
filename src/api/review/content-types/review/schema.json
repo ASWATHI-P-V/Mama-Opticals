@@ -4,24 +4,39 @@
   "info": {
     "singularName": "review",
     "pluralName": "reviews",
-    "displayName": "Review"
+    "displayName": "Review",
+    "description": ""
   },
   "options": {
     "draftAndPublish": true
   },
-  "pluginOptions": {},
+  "pluginOptions": {
+    "i18n": {
+      "localized": true
+    }
+  },
   "attributes": {
     "rating": {
       "type": "integer",
       "required": true,
       "max": 5,
-      "min": 1
+      "min": 1,
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     },
     "comment": {
       "type": "text",
       "required": false,
       "maxLength": 500,
-      "description": "User's review comment"
+      "description": "User's review comment",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     },
     "user": {
       "type": "relation",

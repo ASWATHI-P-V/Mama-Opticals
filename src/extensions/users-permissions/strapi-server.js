@@ -25,7 +25,7 @@ const {
 const unverifiedUsers = new Map();
 
 module.exports = (plugin) => {
-  //MARK: Register Method ---
+  //MARK: Register Method
   plugin.controllers.auth.register = async (ctx) => {
     try {
       const { body, files } = ctx.request;
@@ -113,7 +113,7 @@ module.exports = (plugin) => {
     }
   };
 
-  //MARK:otp verification
+  //MARK:register otp
   plugin.controllers.auth.verifyOtp = async (ctx) => {
     try {
       const { body } = ctx.request;
@@ -454,7 +454,7 @@ module.exports = (plugin) => {
   //     }
   //   };
 
-  // MARK: callbackWeb Method (Login with identifier and password) ---
+  // MARK: callbackWeb Method
   plugin.controllers.auth.callbackWeb = async (ctx) => {
     try {
       const { body } = ctx.request;
@@ -568,7 +568,6 @@ module.exports = (plugin) => {
     }
   };
 
-  //MARK: callback Method (Mobile/App Login with identifier and password OR phone only for OTP) ---
   // This method will now also handle direct login with password and OTP-only login
   // MARK: callbackWeb Method (Login with email and password OR phone for OTP) ---
   plugin.controllers.auth.callbackWeb = async (ctx) => {
@@ -683,7 +682,7 @@ module.exports = (plugin) => {
     }
   };
 
-  // MARK: loginVerify Method ---
+  // MARK:loginVerify Method
   // This method handles the second step of OTP-based login, verifying the OTP.
   plugin.controllers.auth.loginVerify = async (ctx) => {
     try {
@@ -1108,7 +1107,7 @@ module.exports = (plugin) => {
         "plugin::users-permissions.user",
         userId,
         {
-          fields: ["id"], // Only fetch necessary fields
+          fields: ["id"],
           populate: {
             profileImage: {
               fields: ["id", "url", "formats"],
@@ -1119,36 +1118,45 @@ module.exports = (plugin) => {
 
       if (!userFound) {
         throw new NotFoundError("User not found");
-      }
+      } // Validate phone number if it's provided
 
       if (body?.phone) {
         const isValid = isPhoneValid(body.phone);
         if (!isValid) {
           throw new ValidationError("Invalid phone number");
         }
-      }
+      } // Prepare the data to be updated
 
       const updateData = {
         ...(body?.name && { name: body?.name }),
         ...(body?.email && { email: body?.email?.toLowerCase() }),
         ...(body?.phone && { phone: body?.phone }),
-        ...(body?.dateOfBirth && { dateOfBirth: body?.dateOfBirth }), // Allow updating dateOfBirth
-        ...(body?.gender && { gender: body?.gender }), // Allow updating gender
+        ...(body?.dateOfBirth && { dateOfBirth: body?.dateOfBirth }),
+        ...(body?.gender && { gender: body?.gender }),
       };
+
+      // Handle the profile image logic
+      let filesToUpdate = {};
+      if (files && files.profileImage) {
+        // A new image is provided, prepare to upload it.
+        filesToUpdate = {
+          files: {
+            profileImage: {
+              ...files.profileImage,
+              type: changeFileMimeType(files.profileImage),
+            },
+          },
+        };
+      }
+      // If a user doesn't pass a new image, the `filesToUpdate` object will be empty,
+      // and the old image link will be kept.
 
       const userUpdated = await strapi.entityService.update(
         "plugin::users-permissions.user",
         userId,
         {
           data: updateData,
-          ...(files?.profileImage && {
-            files: {
-              profileImage: {
-                ...files.profileImage,
-                type: changeFileMimeType(files.profileImage),
-              },
-            },
-          }),
+          ...filesToUpdate, // Conditionally add the files object
           fields: [
             "name",
             "email",
@@ -1157,21 +1165,16 @@ module.exports = (plugin) => {
             "gender",
             "createdAt",
             "updatedAt",
-          ], // Include new fields in response
+          ],
           populate: {
             profileImage: {
               fields: ["url", "formats"],
             },
           },
         }
-      );
+      ); // Delete the old profile image only if a new one was uploaded successfully.
 
-      if (userUpdated && files.profileImage && userFound.profileImage) {
-        await strapi.entityService.delete(
-          "plugin::upload.file",
-          userFound.profileImage.id
-        );
-
+      if (files && files.profileImage && userFound.profileImage) {
         await strapi.plugins.upload.services.upload.remove(
           userFound.profileImage
         );
@@ -1255,12 +1258,12 @@ module.exports = (plugin) => {
         }
       );
 
-      // Send OTP to user's registered email or phone
-      // if (user?.phone) {
-      //   await smsVerifyOtp(otp, user.phone);
-      // } else if (user?.email) {
-      //   await emailVerifyOtp(otp, user.email);
-      // }
+      //Send OTP to user's registered email or phone
+      if (user?.phone) {
+        await smsVerifyOtp(otp, user.phone);
+      } else if (user?.email) {
+        await emailVerifyOtp(otp, user.email);
+      }
 
       return ctx.send({
         success: true,
@@ -1343,6 +1346,335 @@ module.exports = (plugin) => {
     }
   };
 
+
+
+  // MARK:forgotPasswordRequestAuth(for authenticated user who forgot password)
+  plugin.controllers.auth.forgotPasswordRequestAuth = async (ctx) => {
+    try {
+      const { id: userId } = ctx.state.user;
+
+      const user = await strapi.entityService.findOne(
+        "plugin::users-permissions.user",
+        userId,
+        { fields: ["email", "phone"] }
+      );
+
+      if (!user) {
+        throw new NotFoundError("User not found.");
+      }
+
+      const otp = await generateOTP();
+      const otpExpiryTime = new Date(new Date().getTime() + 2.5 * 60000);
+
+      await strapi.entityService.update(
+        "plugin::users-permissions.user",
+        userId,
+        {
+          data: {
+            otp: otp,
+            otpExpiryTime: otpExpiryTime,
+          },
+        }
+      );
+
+      if (user.email) {
+        await emailVerifyOtp(otp, user.email);
+      }
+      if (user.phone) {
+        await smsVerifyOtp(otp, user.phone);
+      }
+
+      return ctx.send({
+        success: true,
+        message: "OTP sent to your registered contact for password reset.",
+        data: { otp: otp },
+      });
+    } catch (error) {
+      const customizedError = handleErrors(error);
+      return ctx.send(
+        {
+          success: false,
+          message: customizedError.message,
+        },
+        handleStatusCode(error) || 500
+      );
+    }
+  };
+
+  // MARK: forgotPasswordVerifyOtpAuth Method (for authenticated user)
+  plugin.controllers.auth.forgotPasswordVerifyOtpAuth = async (ctx) => {
+    try {
+      const { body } = ctx.request;
+      const { id: userId } = ctx.state.user;
+
+      validateBodyRequiredFields(body, ["otp"]);
+
+      const user = await strapi.entityService.findOne(
+        "plugin::users-permissions.user",
+        userId,
+        { fields: ["otp", "otpExpiryTime"] }
+      );
+
+      if (!user) {
+        throw new NotFoundError("User not found.");
+      }
+
+      if (user.otp !== body.otp || new Date() > new Date(user.otpExpiryTime)) {
+        throw new UnauthorizedError("Invalid or expired OTP.");
+      }
+
+      await strapi.entityService.update(
+        "plugin::users-permissions.user",
+        userId,
+        {
+          data: {
+            otp: null,
+            otpExpiryTime: null,
+            passwordResetVerified: true,
+          },
+        }
+      );
+
+      return ctx.send({
+        success: true,
+        message: "OTP verified successfully. You can now reset your password.",
+      });
+    } catch (error) {
+      const customizedError = handleErrors(error);
+      return ctx.send(
+        {
+          success: false,
+          message: customizedError.message,
+        },
+        handleStatusCode(error) || 500
+      );
+    }
+  };
+
+  // MARK: forgotPasswordConfirmAuth Method (for authenticated user)
+  plugin.controllers.auth.forgotPasswordConfirmAuth = async (ctx) => {
+    try {
+      const { body } = ctx.request;
+      const { id: userId } = ctx.state.user;
+
+      validateBodyRequiredFields(body, ["newPassword", "confirmNewPassword"]);
+
+      if (body.newPassword !== body.confirmNewPassword) {
+        throw new ValidationError("New password and confirm new password do not match.");
+      }
+
+      const user = await strapi.entityService.findOne(
+        "plugin::users-permissions.user",
+        userId,
+        { fields: ["passwordResetVerified"] }
+      );
+
+      if (!user) {
+        throw new NotFoundError("User not found.");
+      }
+
+      if (!user.passwordResetVerified) {
+        throw new UnauthorizedError("OTP verification required before changing password.");
+      }
+
+      const hashedPassword = await bcrypt.hash(body.newPassword, 10);
+      await strapi.entityService.update(
+        "plugin::users-permissions.user",
+        userId,
+        {
+          data: {
+            password: hashedPassword,
+            passwordResetVerified: false,
+          },
+        }
+      );
+
+      return ctx.send({
+        success: true,
+        message: "Password reset successfully.",
+      });
+    } catch (error) {
+      const customizedError = handleErrors(error);
+      return ctx.send(
+        {
+          success: false,
+          message: customizedError.message,
+        },
+        handleStatusCode(error) || 500
+      );
+    }
+  };
+
+  // MARK: forgotPasswordRequest Method (for an unauthorized user)
+  plugin.controllers.auth.forgotPasswordRequest = async (ctx) => {
+    try {
+      const { body } = ctx.request;
+      validateBodyRequiredFields(body, ["identifier"]);
+
+      const user = await strapi.entityService.findMany(
+        "plugin::users-permissions.user",
+        {
+          filters: {
+            $or: [{ email: body.identifier }, { phone: body.identifier }],
+          },
+        }
+      );
+
+      if (!user || user.length === 0) {
+        throw new NotFoundError("User not found with the given identifier.");
+      }
+
+      const userData = user[0];
+      const otp = await generateOTP();
+      const otpExpiryTime = new Date(new Date().getTime() + 2.5 * 60000);
+
+      await strapi.entityService.update(
+        "plugin::users-permissions.user",
+        userData.id,
+        {
+          data: {
+            otp: otp,
+            otpExpiryTime: otpExpiryTime,
+          },
+        }
+      );
+
+      if (userData.email) {
+        await emailVerifyOtp(otp, userData.email);
+      }
+      if (userData.phone) {
+        await smsVerifyOtp(otp, userData.phone);
+      }
+
+      return ctx.send({
+        success: true,
+        message: "OTP sent to your registered contact for password reset.",
+        data: { otp: otp },
+      });
+    } catch (error) {
+      const customizedError = handleErrors(error);
+      return ctx.send(
+        {
+          success: false,
+          message: customizedError.message,
+        },
+        handleStatusCode(error) || 500
+      );
+    }
+  };
+
+  // MARK: forgotPasswordVerifyOtp Method (for an unauthorized user)
+  plugin.controllers.auth.forgotPasswordVerifyOtp = async (ctx) => {
+    try {
+      const { body } = ctx.request;
+      validateBodyRequiredFields(body, ["identifier", "otp"]);
+
+      const user = await strapi.entityService.findMany(
+        "plugin::users-permissions.user",
+        {
+          filters: {
+            $or: [{ email: body.identifier }, { phone: body.identifier }],
+            otp: body.otp,
+            otpExpiryTime: {
+              $gt: new Date(),
+            },
+          },
+        }
+      );
+
+      if (!user || user.length === 0) {
+        throw new UnauthorizedError("Invalid or expired OTP, or user not found.");
+      }
+
+      const userData = user[0];
+      await strapi.entityService.update(
+        "plugin::users-permissions.user",
+        userData.id,
+        {
+          data: {
+            otp: null,
+            otpExpiryTime: null,
+            passwordResetVerified: true,
+          },
+        }
+      );
+
+      return ctx.send({
+        success: true,
+        message: "OTP verified successfully. You can now reset your password.",
+      });
+    } catch (error) {
+      const customizedError = handleErrors(error);
+      return ctx.send(
+        {
+          success: false,
+          message: customizedError.message,
+        },
+        handleStatusCode(error) || 500
+      );
+    }
+  };
+
+  // MARK: forgotPasswordConfirm Method (for an unauthorized user)
+  plugin.controllers.auth.forgotPasswordConfirm = async (ctx) => {
+    try {
+      const { body } = ctx.request;
+      validateBodyRequiredFields(body, [
+        "identifier",
+        "newPassword",
+        "confirmNewPassword",
+      ]);
+
+      if (body.newPassword !== body.confirmNewPassword) {
+        throw new ValidationError("New password and confirm new password do not match.");
+      }
+
+      const user = await strapi.entityService.findMany(
+        "plugin::users-permissions.user",
+        {
+          filters: {
+            $or: [{ email: body.identifier }, { phone: body.identifier }],
+            passwordResetVerified: true,
+          },
+        }
+      );
+
+      if (!user || user.length === 0) {
+        throw new UnauthorizedError("OTP verification is required before changing password, or user not found.");
+      }
+
+      const userData = user[0];
+      const hashedPassword = await bcrypt.hash(body.newPassword, 10);
+
+      await strapi.entityService.update(
+        "plugin::users-permissions.user",
+        userData.id,
+        {
+          data: {
+            password: hashedPassword,
+            passwordResetVerified: false,
+          },
+        }
+      );
+
+      return ctx.send({
+        success: true,
+        message: "Password reset successfully. You can now log in with your new password.",
+      });
+    } catch (error) {
+      const customizedError = handleErrors(error);
+      return ctx.send(
+        {
+          success: false,
+          message: customizedError.message,
+        },
+        handleStatusCode(error) || 500
+      );
+    }
+  };
+
+
+
   // MARK: deleteAccount Method ---
   plugin.controllers.auth.deleteAccount = async (ctx) => {
     try {
@@ -1402,12 +1734,12 @@ module.exports = (plugin) => {
       },
     },
     {
-      method:"POST",
-      path:"/auth/loginVerify",
-      handler:"auth.loginVerify",
-      config:{
-        middlewares:["plugin::users-permissions.rateLimit"],
-        prefix:"",
+      method: "POST",
+      path: "/auth/loginVerify",
+      handler: "auth.loginVerify",
+      config: {
+        middlewares: ["plugin::users-permissions.rateLimit"],
+        prefix: "",
       },
     },
     {
@@ -1450,6 +1782,60 @@ module.exports = (plugin) => {
       method: "PUT",
       path: "/auth/changeProfile",
       handler: "auth.changeProfile",
+      config: {
+        middlewares: ["plugin::users-permissions.rateLimit"],
+        prefix: "",
+      },
+    },
+    {
+      method: "POST",
+      path: "/auth/forgotPasswordRequestAuth",
+      handler: "auth.forgotPasswordRequestAuth",
+      config: {
+        middlewares: ["plugin::users-permissions.rateLimit"],
+        prefix: "",
+      },
+    },
+    {
+      method: "POST",
+      path: "/auth/forgotPasswordVerifyOtpAuth",
+      handler: "auth.forgotPasswordVerifyOtpAuth",
+      config: {
+        middlewares: ["plugin::users-permissions.rateLimit"],
+        prefix: "",
+      },
+    },
+    {
+      method: "POST",
+      path: "/auth/forgotPasswordConfirmAuth",
+      handler: "auth.forgotPasswordConfirmAuth",
+      config: {
+        middlewares: ["plugin::users-permissions.rateLimit"],
+        prefix: "",
+      },
+    },
+    {
+      method: "POST",
+      path: "/auth/forgotPasswordRequest",
+      handler: "auth.forgotPasswordRequest",
+      config: {
+        middlewares: ["plugin::users-permissions.rateLimit"],
+        prefix: "",
+      },
+    },
+    {
+      method: "POST",
+      path: "/auth/forgotPasswordVerifyOtp",
+      handler: "auth.forgotPasswordVerifyOtp",
+      config: {
+        middlewares: ["plugin::users-permissions.rateLimit"],
+        prefix: "",
+      },
+    },
+    {
+      method: "POST",
+      path: "/auth/forgotPasswordConfirm",
+      handler: "auth.forgotPasswordConfirm",
       config: {
         middlewares: ["plugin::users-permissions.rateLimit"],
         prefix: "",

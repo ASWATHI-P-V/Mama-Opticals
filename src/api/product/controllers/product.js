@@ -125,7 +125,7 @@ async function ImageFile(file, width, height) {
   });
   return uploadedFile;
 }
-// --- END Helper Functions ---
+//MARK:product create
 
 module.exports = createCoreController("api::product.product", ({ strapi }) => ({
   async create(ctx) {
@@ -287,44 +287,49 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
     }
   },
 
-  //MARK: Find one product by ID
-  async findOne(ctx) {
+  //MARK: Find one product 
+
+    async findOne(ctx) {
     try {
       const { id } = ctx.params;
+      
+      
+      const populate = {
+        image: true,
+        category: true,
+        lens_types: true,
+        lens_coatings: true,
+        frame_weights: true,
+        brands: true,
+        frame_materials: true,
+        frame_shapes: true,
+        lens_thicknesses: true,
+        reviews: true,
+        types: true,
+        best_seller: true,
+        variants: {
+          populate: {
+            color: true,
+            frame_size: true,
+          },
+        },
+      };
+
       const product = await strapi.entityService.findOne(
         "api::product.product",
         id,
-        {
-          populate: [
-            "image",
-            "category",
-            "lens_types",
-            "lens_coatings",
-            "frame_weights",
-            "brands",
-
-            "frame_materials",
-            "frame_shapes",
-            "lens_thicknesses",
-
-            "reviews",
-            "types",
-            "best_seller",
-            {
-              variants: {
-                populate: ["color", "frame_size"],
-              },
-            },
-          ],
-        }
+        { populate }
       );
+
       if (!product) {
         throw new NotFoundError("Product not found.");
       }
+
       const sanitizedProduct = await strapiUtils.sanitize.contentAPI.output(
         product,
         strapi.contentType("api::product.product")
       );
+
       return ctx.send({
         success: true,
         message: "Product retrieved successfully.",

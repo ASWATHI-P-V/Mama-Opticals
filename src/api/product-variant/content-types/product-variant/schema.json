@@ -10,6 +10,11 @@
   "options": {
     "draftAndPublish": false
   },
+  "pluginOptions": {
+    "i18n": {
+      "localized": true
+    }
+  },
   "attributes": {
     "product": {
       "type": "relation",
@@ -17,10 +22,11 @@
       "target": "api::product.product",
       "inversedBy": "variants"
     },
-    "color": {
-      "type": "relation",
+    "color_picker": {
+      "type": "customField",
       "relation": "oneToOne",
-      "target": "api::color.color"
+      "target": "api::color.color",
+      "customField": "plugin::color-picker.color"
     },
     "frame_size": {
       "type": "relation",
@@ -30,18 +36,33 @@
     "inStock": {
       "type": "boolean",
       "required": true,
-      "default": true
+      "default": true,
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     },
     "stock": {
       "type": "integer",
       "min": 1,
       "default": 0,
-      "required": true
+      "required": true,
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     },
     "isActive": {
       "type": "boolean",
       "default": true,
-      "required": true
+      "required": true,
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     }
   }
 }

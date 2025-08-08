@@ -4,20 +4,35 @@
   "info": {
     "singularName": "notification",
     "pluralName": "notifications",
-    "displayName": "Notification"
+    "displayName": "Notification",
+    "description": ""
   },
   "options": {
     "draftAndPublish": true
   },
-  "pluginOptions": {},
+  "pluginOptions": {
+    "i18n": {
+      "localized": true
+    }
+  },
   "attributes": {
     "title": {
       "type": "string",
-      "required": true
+      "required": true,
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     },
     "message": {
       "type": "text",
-      "required": true
+      "required": true,
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     },
     "user": {
       "type": "relation",
@@ -28,13 +43,16 @@
     "read": {
       "type": "boolean",
       "default": false,
-      "private": false
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     },
     "relatedOrder": {
       "type": "relation",
       "relation": "oneToOne",
-      "target": "api::order.order",
-      "private": false
+      "target": "api::order.order"
     },
     "type": {
       "type": "enumeration",
@@ -44,12 +62,22 @@
         "system"
       ],
       "default": "order_status",
-      "required": true
+      "required": true,
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     },
     "sentAt": {
       "type": "datetime",
       "required": true,
-      "default": "NOW"
+      "default": "NOW",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     }
   }
 }
