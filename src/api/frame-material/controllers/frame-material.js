@@ -56,7 +56,7 @@ module.exports = createCoreController('api::frame-material.frame-material', ({ s
       });
     }
   },
-  async findOne(ctx) {
+    async findOne(ctx) {
     const { id } = ctx.params;
     const { locale } = ctx.query;
 
@@ -117,3 +117,79 @@ module.exports = createCoreController('api::frame-material.frame-material', ({ s
     }
   }
 }));
+
+
+//   async findOne(ctx) {
+//         const { id } = ctx.params;
+//         const { locale } = ctx.query;
+
+//         try {
+//             const defaultLocale = 'en';
+
+//             // 1. Fetch the requested item first, populating its localizations
+//             const requestedFrameMaterial = await strapi.entityService.findOne(
+//                 'api::frame-material.frame-material',
+//                 id, {
+//                     populate: ['localizations'],
+//                     locale: locale || defaultLocale,
+//                 }
+//             );
+
+//             if (!requestedFrameMaterial) {
+//                 return ctx.notFound({
+//                     success: false,
+//                     message: 'Frame material not found.',
+//                     data: null,
+//                 });
+//             }
+
+//             let localizedFrameMaterial = requestedFrameMaterial;
+//             let baseFrameMaterial = null;
+
+//             // 2. Check if a different locale was requested and a base English localization exists
+//             if (locale && locale !== defaultLocale) {
+//                 // Find the base English localization from the localizations array
+//                 const baseLocalization = requestedFrameMaterial.localizations.find(loc => loc.locale === defaultLocale);
+
+//                 if (baseLocalization) {
+//                     // Fetch the base localization using its ID
+//                     baseFrameMaterial = await strapi.entityService.findOne(
+//                         'api::frame-material.frame-material',
+//                         baseLocalization.id, {
+//                             populate: ['localizations'],
+//                             locale: defaultLocale,
+//                         }
+//                     );
+
+//                     // If the base item is found, override the localized item with the base item's data
+//                     // while keeping the translated name from the requested item.
+//                     if (baseFrameMaterial) {
+//                         baseFrameMaterial.name = requestedFrameMaterial.name;
+//                         localizedFrameMaterial = baseFrameMaterial;
+//                     }
+//                 }
+//             }
+
+//             // Sanitize the output
+//             const sanitizedFrameMaterial = await sanitize.contentAPI.output(
+//                 localizedFrameMaterial,
+//                 strapi.contentType("api::frame-material.frame-material")
+//             );
+
+//             // Return the data in the desired format
+//             return ctx.send({
+//                 success: true,
+//                 message: 'Frame material retrieved successfully.',
+//                 data: sanitizedFrameMaterial,
+//             });
+
+//         } catch (error) {
+//             console.error(error);
+//             ctx.status = 500;
+//             return ctx.send({
+//                 success: false,
+//                 message: 'An unexpected error occurred.',
+//                 data: null,
+//             });
+//         }
+//     }

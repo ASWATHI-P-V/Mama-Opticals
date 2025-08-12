@@ -10,33 +10,21 @@
   "options": {
     "draftAndPublish": true
   },
-  "pluginOptions": {
-    "i18n": {
-      "localized": true
-    }
-  },
+  "pluginOptions": {},
   "attributes": {
     "rating": {
       "type": "integer",
       "required": true,
       "max": 5,
       "min": 1,
-      "pluginOptions": {
-        "i18n": {
-          "localized": true
-        }
-      }
+      "pluginOptions": {}
     },
     "comment": {
       "type": "text",
       "required": false,
       "maxLength": 500,
       "description": "User's review comment",
-      "pluginOptions": {
-        "i18n": {
-          "localized": true
-        }
-      }
+      "pluginOptions": {}
     },
     "user": {
       "type": "relation",

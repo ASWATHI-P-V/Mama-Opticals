@@ -10,11 +10,12 @@
   "options": {
     "draftAndPublish": true
   },
-  "pluginOptions": {},
+  "pluginOptions": {
+    "i18n": {
+      "localized": true
+    }
+  },
   "attributes": {
-    "address_name": {
-      "type": "string"
-    },
     "phone": {
       "type": "customField",
       "customField": "plugin::strapi-phone-validator.phone",
@@ -23,11 +24,29 @@
       },
       "configurable": false
     },
+    "address_name": {
+      "type": "string",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
     "locality_name": {
-      "type": "string"
+      "type": "string",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     },
     "country_name": {
-      "type": "string"
+      "type": "string",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     },
     "home_work": {
       "type": "enumeration",
@@ -37,18 +56,33 @@
         "Other"
       ],
       "required": false,
-      "description": "Type of address (Home, Work, Other)"
+      "description": "Type of address (Home, Work, Other)",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     },
     "box_number": {
       "type": "string",
       "required": false,
-      "description": "Apartment, suite, unit, or P.O. box number"
+      "description": "Apartment, suite, unit, or P.O. box number",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     },
     "is_default": {
       "type": "boolean",
       "default": false,
       "required": true,
-      "description": "Indicates if this is the user's default address"
+      "description": "Indicates if this is the user's default address",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     },
     "user": {
       "type": "relation",

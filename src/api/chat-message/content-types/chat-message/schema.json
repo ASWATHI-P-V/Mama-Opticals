@@ -17,9 +17,7 @@
       "type": "relation",
       "relation": "manyToOne",
       "target": "plugin::users-permissions.user",
-      "inversedBy": "ai_chat_messages",
-      "required": true,
-      "private": false
+      "inversedBy": "ai_chat_messages"
     },
     "messageContent": {
       "type": "text",

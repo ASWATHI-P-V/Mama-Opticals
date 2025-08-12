@@ -109,92 +109,125 @@ module.exports = createCoreController("api::category.category", ({ strapi }) => 
    * GET /api/categories
    */
   //MARK: Find all categories
-  async find(ctx) {
-    try {
-      const { query } = ctx;
-      const { locale } = query;
-      let filters = {};
-      let sort = [];
-      let populate = [ 'image']; // Populate products and the non-localized image field
+async find(ctx) {
+  try {
+    const { query } = ctx;
+    const { locale } = query;
+    const currentLocale = locale || 'en';
 
-      // --- 1. Search/Filtering by name ---
-      if (query._q) {
-        filters.$or = [
-          { name: { $containsi: query._q } }
-        ];
-        delete query._q;
-      } else if (query.name) {
-        filters.name = { $eqi: query.name };
-        delete query.name;
-      }
+    let filters = {};
+    let sort = [];
+    let populate = ['image', 'products'];
 
-      // Add locale filter
-      filters.locale = { $eq: locale || 'en' };
-
-      // --- 2. Sorting ---
-      if (query._sort) {
-        const sortParams = Array.isArray(query._sort) ? query._sort : [query._sort];
-        sort = sortParams.map(s => {
-          const [field, order] = s.split(':');
-          return {
-            [field]: order.toLowerCase()
-          };
-        });
-        delete query._sort;
-      } else {
-        sort.push({
-          createdAt: 'desc'
-        }); // Default sort
-      }
-
-      // --- 3. Pagination ---
-      const page = parseInt(query.page || 1);
-      const pageSize = parseInt(query.pageSize || 10);
-      const start = (page - 1) * pageSize;
-      const limit = pageSize;
-
-      const findOptions = {
-        filters: filters,
-        sort: sort,
-        populate: populate,
-        start: start,
-        limit: limit,
+    // --- 1. Search/Filtering by name ---
+    if (query._q) {
+      filters.$or = [{
+        name: {
+          $containsi: query._q
+        }
+      }];
+      delete query._q;
+    } else if (query.name) {
+      filters.name = {
+        $eqi: query.name
       };
+      delete query.name;
+    }
 
-      const categories = await strapi.entityService.findMany("api::category.category", findOptions);
-      const total = await strapi.entityService.count("api::category.category", {
-        filters: filters
+    // Add locale filter
+    filters.locale = {
+      $eq: currentLocale
+    };
+
+    // --- 2. Sorting ---
+    if (query._sort) {
+      const sortParams = Array.isArray(query._sort) ? query._sort : [query._sort];
+      sort = sortParams.map(s => {
+        const [field, order] = s.split(':');
+        return {
+          [field]: order.toLowerCase()
+        };
       });
+      delete query._sort;
+    } else {
+      sort.push({
+        createdAt: 'desc'
+      });
+    }
 
-      const sanitizedCategories = await Promise.all(
-        categories.map((category) =>
-          strapiUtils.sanitize.contentAPI.output(category, strapi.contentType('api::category.category'))
-        )
-      );
+    // --- 3. Pagination ---
+    const page = parseInt(query.page || 1);
+    const pageSize = parseInt(query.pageSize || 10);
+    const start = (page - 1) * pageSize;
+    const limit = pageSize;
 
-      return ctx.send({
-        success: true,
-        message: "Categories retrieved successfully.",
-        data: {
-          categories: sanitizedCategories,
-          meta: {
-            pagination: {
-              page: page,
-              pageSize: limit,
-              pageCount: Math.ceil(total / limit),
-              total: total,
-            },
+    const findOptions = {
+      filters: filters,
+      sort: sort,
+      // Populate 'products' to get their IDs and default locale data
+      populate: {
+        image: true,
+        products: {
+          populate: ['localizations']
+        }
+      },
+      start: start,
+      limit: limit,
+      locale: currentLocale
+    };
+
+    let categories = await strapi.entityService.findMany("api::category.category", findOptions);
+
+    // If products exist, replace them with their localized versions.
+    if (categories && categories.length > 0) {
+      categories = await Promise.all(categories.map(async category => {
+        if (category.products && category.products.length > 0) {
+          category.products = await Promise.all(category.products.map(async product => {
+            const localizedProduct = product.localizations?.find(loc => loc.locale === currentLocale) || product;
+            return await strapi.entityService.findOne('api::product.product', localizedProduct.id, {
+              locale: currentLocale,
+              // Add any product-specific populate fields here if needed
+              populate: ['image', 'variants']
+            });
+          }));
+        }
+        return category;
+      }));
+    }
+
+    const total = await strapi.entityService.count("api::category.category", {
+      filters: filters
+    });
+
+    const sanitizedCategories = await Promise.all(
+      categories.map((category) =>
+        strapiUtils.sanitize.contentAPI.output(category, strapi.contentType('api::category.category'))
+      )
+    );
+
+    return ctx.send({
+      success: true,
+      message: "Categories retrieved successfully.",
+      data: {
+        categories: sanitizedCategories,
+        meta: {
+          pagination: {
+            page: page,
+            pageSize: limit,
+            pageCount: Math.ceil(total / limit),
+            total: total,
           },
         },
-      });
-    } catch (error) {
-      const customizedError = handleErrors(error);
-      return ctx.send({
-        success: false,
-        message: customizedError.message
-      }, handleStatusCode(error) || 500);
-    }
-  },
+      },
+    });
+  } catch (error) {
+    const customizedError = handleErrors(error);
+    return ctx.send({
+      success: false,
+      message: customizedError.message
+    }, handleStatusCode(error) || 500);
+  }
+},
 
   /**
    * Retrieve a single category by ID.
@@ -229,11 +262,27 @@ module.exports = createCoreController("api::category.category", ({ strapi }) => 
             'api::category.category',
             foundLocalization.id, {
               locale: locale,
-              populate: ['products', 'image'] // Ensure products and image are populated for the localized version
+              // Ensure products and image are populated for the localized version
+            populate: {
+                products: {
+                    populate: {
+                        localizations: true // This is the key
+                    }
+                },
+                image: true
             }
-          );
+          }
+        );
         }
       }
+
+     // Now, let's replace the products with their localized versions.
+    if (localizedCategory && localizedCategory.products && localizedCategory.products.length > 0) {
+        localizedCategory.products = await Promise.all(localizedCategory.products.map(async product => {
+            const localizedProduct = product.localizations?.find(loc => loc.locale === locale) || product;
+            return await strapi.entityService.findOne('api::product.product', localizedProduct.id, { locale });
+        }));
+    } 
 
       const sanitizedCategory = await strapiUtils.sanitize.contentAPI.output(localizedCategory, strapi.contentType('api::category.category'));
 

@@ -373,10 +373,30 @@ export interface ApiAddressAddress extends Schema.CollectionType {
   options: {
     draftAndPublish: true;
   };
+  pluginOptions: {
+    i18n: {
+      localized: true;
+    };
+  };
   attributes: {
-    address_name: Attribute.String;
-    box_number: Attribute.String;
-    country_name: Attribute.String;
+    address_name: Attribute.String &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    box_number: Attribute.String &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    country_name: Attribute.String &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
     createdAt: Attribute.DateTime;
     createdBy: Attribute.Relation<
       'api::address.address',
@@ -384,11 +404,32 @@ export interface ApiAddressAddress extends Schema.CollectionType {
       'admin::user'
     > &
       Attribute.Private;
-    home_work: Attribute.Enumeration<['Home', 'Work', 'Other']>;
+    home_work: Attribute.Enumeration<['Home', 'Work', 'Other']> &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
     is_default: Attribute.Boolean &
       Attribute.Required &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }> &
       Attribute.DefaultTo<false>;
-    locality_name: Attribute.String;
+    locale: Attribute.String;
+    locality_name: Attribute.String &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    localizations: Attribute.Relation<
+      'api::address.address',
+      'oneToMany',
+      'api::address.address'
+    >;
     phone: Attribute.String &
       Attribute.CustomField<
         'plugin::strapi-phone-validator.phone',
@@ -771,8 +812,7 @@ export interface ApiChatMessageChatMessage extends Schema.CollectionType {
       'api::chat-message.chat-message',
       'manyToOne',
       'plugin::users-permissions.user'
-    > &
-      Attribute.Required;
+    >;
   };
 }
 
@@ -1649,7 +1689,7 @@ export interface ApiProductVariantProductVariant extends Schema.CollectionType {
       Attribute.Required &
       Attribute.SetPluginOptions<{
         i18n: {
-          localized: true;
+          localized: false;
         };
       }> &
       Attribute.DefaultTo<true>;
@@ -1657,7 +1697,7 @@ export interface ApiProductVariantProductVariant extends Schema.CollectionType {
       Attribute.Required &
       Attribute.SetPluginOptions<{
         i18n: {
-          localized: true;
+          localized: false;
         };
       }> &
       Attribute.DefaultTo<true>;
@@ -1672,11 +1712,24 @@ export interface ApiProductVariantProductVariant extends Schema.CollectionType {
       'manyToOne',
       'api::product.product'
     >;
+    salesCount: Attribute.Integer &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: false;
+        };
+      }> &
+      Attribute.SetMinMax<
+        {
+          min: 0;
+        },
+        number
+      > &
+      Attribute.DefaultTo<0>;
     stock: Attribute.Integer &
       Attribute.Required &
       Attribute.SetPluginOptions<{
         i18n: {
-          localized: true;
+          localized: false;
         };
       }> &
       Attribute.SetMinMax<
@@ -1713,11 +1766,25 @@ export interface ApiProductProduct extends Schema.CollectionType {
     };
   };
   attributes: {
+    average_rating: Attribute.Decimal &
+      Attribute.SetMinMax<
+        {
+          max: 5;
+          min: 0;
+        },
+        number
+      > &
+      Attribute.DefaultTo<0>;
     brands: Attribute.Relation<
       'api::product.product',
       'oneToMany',
       'api::brand.brand'
-    >;
+    > &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: false;
+        };
+      }>;
     category: Attribute.Relation<
       'api::product.product',
       'manyToOne',
@@ -1787,13 +1854,13 @@ export interface ApiProductProduct extends Schema.CollectionType {
     offerPrice: Attribute.Decimal &
       Attribute.SetPluginOptions<{
         i18n: {
-          localized: true;
+          localized: false;
         };
       }>;
     offers: Attribute.Text &
       Attribute.SetPluginOptions<{
         i18n: {
-          localized: true;
+          localized: false;
         };
       }>;
     orders: Attribute.Relation<
@@ -1804,30 +1871,11 @@ export interface ApiProductProduct extends Schema.CollectionType {
     price: Attribute.Integer &
       Attribute.SetPluginOptions<{
         i18n: {
-          localized: true;
+          localized: false;
         };
       }>;
     publishedAt: Attribute.DateTime;
-    rating: Attribute.Decimal &
-      Attribute.SetPluginOptions<{
-        i18n: {
-          localized: true;
-        };
-      }> &
-      Attribute.SetMinMax<
-        {
-          max: 5;
-          min: 0;
-        },
-        number
-      > &
-      Attribute.DefaultTo<0>;
     reviewCount: Attribute.Integer &
-      Attribute.SetPluginOptions<{
-        i18n: {
-          localized: true;
-        };
-      }> &
       Attribute.SetMinMax<
         {
           min: 0;
@@ -1840,12 +1888,6 @@ export interface ApiProductProduct extends Schema.CollectionType {
       'oneToMany',
       'api::review.review'
     >;
-    salesCount: Attribute.Integer &
-      Attribute.SetPluginOptions<{
-        i18n: {
-          localized: true;
-        };
-      }>;
     types: Attribute.Relation<
       'api::product.product',
       'oneToMany',
@@ -1882,18 +1924,8 @@ export interface ApiReviewReview extends Schema.CollectionType {
   options: {
     draftAndPublish: true;
   };
-  pluginOptions: {
-    i18n: {
-      localized: true;
-    };
-  };
   attributes: {
     comment: Attribute.Text &
-      Attribute.SetPluginOptions<{
-        i18n: {
-          localized: true;
-        };
-      }> &
       Attribute.SetMinMaxLength<{
         maxLength: 500;
       }>;
@@ -1904,12 +1936,6 @@ export interface ApiReviewReview extends Schema.CollectionType {
       'admin::user'
     > &
       Attribute.Private;
-    locale: Attribute.String;
-    localizations: Attribute.Relation<
-      'api::review.review',
-      'oneToMany',
-      'api::review.review'
-    >;
     product: Attribute.Relation<
       'api::review.review',
       'manyToOne',
@@ -1918,11 +1944,6 @@ export interface ApiReviewReview extends Schema.CollectionType {
     publishedAt: Attribute.DateTime;
     rating: Attribute.Integer &
       Attribute.Required &
-      Attribute.SetPluginOptions<{
-        i18n: {
-          localized: true;
-        };
-      }> &
       Attribute.SetMinMax<
         {
           max: 5;
@@ -1998,7 +2019,7 @@ export interface ApiTypeType extends Schema.CollectionType {
     image: Attribute.Media<'images' | 'files' | 'videos' | 'audios'> &
       Attribute.SetPluginOptions<{
         i18n: {
-          localized: true;
+          localized: false;
         };
       }>;
     locale: Attribute.String;
@@ -2515,6 +2536,10 @@ export interface PluginUsersPermissionsUser extends Schema.CollectionType {
       Attribute.SetMinMaxLength<{
         minLength: 6;
       }>;
+    emailOtp: Attribute.String & Attribute.Private;
+    emailOtpExpires: Attribute.DateTime & Attribute.Private;
+    emailVerificationCode: Attribute.String;
+    emailVerified: Attribute.Boolean & Attribute.DefaultTo<false>;
     gender: Attribute.Enumeration<['Male', 'Female', 'Other']> &
       Attribute.Required;
     name: Attribute.String & Attribute.Required;
@@ -2535,6 +2560,8 @@ export interface PluginUsersPermissionsUser extends Schema.CollectionType {
       Attribute.SetMinMaxLength<{
         minLength: 6;
       }>;
+    pendingEmail: Attribute.Email & Attribute.Private;
+    pendingPhone: Attribute.String & Attribute.Private;
     phone: Attribute.String &
       Attribute.Unique &
       Attribute.CustomField<
@@ -2543,6 +2570,9 @@ export interface PluginUsersPermissionsUser extends Schema.CollectionType {
           country: 'in';
         }
       >;
+    phoneVerificationCode: Attribute.String;
+    phoneVerificationExpires: Attribute.DateTime & Attribute.Private;
+    phoneVerified: Attribute.Boolean & Attribute.DefaultTo<false>;
     profileImage: Attribute.Media<'images'>;
     provider: Attribute.String;
     resetPasswordToken: Attribute.String & Attribute.Private;
@@ -2556,7 +2586,7 @@ export interface PluginUsersPermissionsUser extends Schema.CollectionType {
       'manyToOne',
       'plugin::users-permissions.role'
     >;
-    tempNewPassword: Attribute.String & Attribute.Private;
+    tempNewPassword: Attribute.Text & Attribute.Private;
     updatedAt: Attribute.DateTime;
     updatedBy: Attribute.Relation<
       'plugin::users-permissions.user',

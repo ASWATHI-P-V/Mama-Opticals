@@ -36,7 +36,7 @@
       "type": "integer",
       "pluginOptions": {
         "i18n": {
-          "localized": true
+          "localized": false
         }
       }
     },
@@ -70,14 +70,6 @@
       "relation": "oneToMany",
       "target": "plugin::users-permissions.user"
     },
-    "salesCount": {
-      "type": "integer",
-      "pluginOptions": {
-        "i18n": {
-          "localized": true
-        }
-      }
-    },
     "lens_types": {
       "type": "relation",
       "relation": "oneToMany",
@@ -96,7 +88,12 @@
     "brands": {
       "type": "relation",
       "relation": "oneToMany",
-      "target": "api::brand.brand"
+      "target": "api::brand.brand",
+      "pluginOptions": {
+        "i18n": {
+          "localized": false
+        }
+      }
     },
     "frame_materials": {
       "type": "relation",
@@ -113,30 +110,20 @@
       "relation": "oneToMany",
       "target": "api::lens-thickness.lens-thickness"
     },
-    "rating": {
+    "average_rating": {
       "type": "decimal",
       "min": 0,
       "max": 5,
       "default": 0,
       "required": false,
-      "description": "Average user rating for the product",
-      "pluginOptions": {
-        "i18n": {
-          "localized": true
-        }
-      }
+      "description": "Average user rating for the product"
     },
     "reviewCount": {
       "type": "integer",
       "min": 0,
       "default": 0,
       "required": false,
-      "description": "Number of reviews for the product",
-      "pluginOptions": {
-        "i18n": {
-          "localized": true
-        }
-      }
+      "description": "Number of reviews for the product"
     },
     "offers": {
       "type": "text",
@@ -144,7 +131,7 @@
       "description": "Details about current offers or promotions (e.g., 'Up to 20% off')",
       "pluginOptions": {
         "i18n": {
-          "localized": true
+          "localized": false
         }
       }
     },
@@ -154,7 +141,7 @@
       "description": "Discounted price if an offer is active",
       "pluginOptions": {
         "i18n": {
-          "localized": true
+          "localized": false
         }
       }
     },

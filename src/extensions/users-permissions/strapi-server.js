@@ -224,247 +224,26 @@ module.exports = (plugin) => {
     }
   };
 
-  // //MARK:otp verification 2nddddd
-  // plugin.controllers.auth.verifyOtp = async (ctx) => {
-  //   try {
-  //     const { body } = ctx.request;
-  //     validateBodyRequiredFields(body, ["otp", "email"]);
-
-  //     const { otp, email } = body;
-
-  //     const tempUser = unverifiedUsers.get(email);
-
-  //     if (!tempUser) {
-  //       throw new NotFoundError("Registration data not found or expired.");
-  //     }
-
-  //     const now = new Date();
-  //     if (tempUser.otp !== otp || now > tempUser.otpExpiryTime) {
-  //       unverifiedUsers.delete(email);
-  //       throw new NotFoundError("Invalid or expired OTP.");
-  //     }
-
-  //     const pluginStore = await strapi.store({
-  //       type: "plugin",
-  //       name: "users-permissions",
-  //     });
-  //     const settings = await pluginStore.get({ key: "advanced" });
-  //     const role = await strapi
-  //       .query("plugin::users-permissions.role")
-  //       .findOne({ where: { type: settings.default_role } });
-
-  //     if (!role) {
-  //       throw new NotFoundError("No default role found");
-  //     }
-
-  //     // Create the permanent user record in the database
-  //     const userCreated = await strapi.entityService.create(
-  //       "plugin::users-permissions.user",
-  //       {
-  //         data: {
-  //           name: tempUser.name,
-  //           phone: tempUser.phone,
-  //           email: tempUser.email,
-  //           dateOfBirth: tempUser.dateOfBirth,
-  //           gender: tempUser.gender,
-  //           password: tempUser.password,
-  //           role: role.id,
-  //           publishedAt: new Date().getTime(),
-  //           confirmed: true,
-  //           otp: null,
-  //           otpExpiryTime: null,
-  //         },
-  //         ...(tempUser.profileImage && {
-  //           files: {
-  //             profileImage: {
-  //               ...tempUser.profileImage,
-  //               type: changeFileMimeType(tempUser.profileImage),
-  //             },
-  //           },
-  //         }),
-  //         populate: {
-  //           profileImage: {
-  //             fields: ["url", "formats"],
-  //           },
-  //         },
-  //       }
-  //     );
-
-  //     // Remove temporary data after successful registration
-  //     unverifiedUsers.delete(email);
-
-  //     return ctx.send({
-  //       success: true,
-  //       message: "User registered and verified successfully.",
-  //       data: {
-  //         jwt: getService("jwt").issue({ id: userCreated.id }),
-  //         user: {
-  //           id: userCreated.id,
-  //           name: userCreated.name,
-  //           email: userCreated.email,
-  //           phone: userCreated.phone,
-  //           dateOfBirth: userCreated.dateOfBirth,
-  //           gender: userCreated.gender,
-  //           otp:otp
-  //         },
-  //       },
-  //     });
-  //   } catch (error) {
-  //     const customizedError = handleErrors(error);
-  //     return ctx.send(
-  //       {
-  //         success: false,
-  //         message: customizedError.message,
-  //       },
-  //       handleStatusCode(error) || 500
-  //     );
-  //   }
-  // };
-
-  // module.exports = (plugin) => {
-  //   //MARK: Register Method ---
-  //   plugin.controllers.auth.register = async (ctx) => {
-  //     try {
-  //       const { body, files } = ctx.request;
-
-  //       // Validate required fields for new registration
-  //       validateBodyRequiredFields(body, [
-  //         "name",
-  //         "phone",
-  //         "email",
-  //         "dateOfBirth",
-  //         "gender",
-  //         "password",
-  //         "confirmPassword",
-  //       ]);
-
-  //       // Check if password and confirm password match
-  //       if (body.password !== body.confirmPassword) {
-  //         throw new ValidationError(
-  //           "Password and Confirm Password do not match."
-  //         );
-  //       }
-
-  //       const pluginStore = await strapi.store({
-  //         type: "plugin",
-  //         name: "users-permissions",
-  //       });
-
-  //       const settings = await pluginStore.get({ key: "advanced" });
-
-  //       const role = await strapi
-  //         .query("plugin::users-permissions.role")
-  //         .findOne({ where: { type: settings.default_role } });
-
-  //       if (!role) {
-  //         throw new NotFoundError("No default role found");
-  //       }
-
-  //       if (!isPhoneValid(body?.phone)) {
-  //         throw new ValidationError("Invalid phone number");
-  //       }
-
-  //       // Check if user with this email or phone already exists
-  //       const existingUser = await strapi.entityService.findMany(
-  //         "plugin::users-permissions.user",
-  //         {
-  //           filters: {
-  //             $or: [{ email: body.email }, { phone: body.phone }],
-  //           },
-  //         }
-  //       );
-
-  //       if (existingUser && existingUser.length > 0) {
-  //         throw new ValidationError(
-  //           "User with this email or phone already exists."
-  //         );
-  //       }
-
-  //       // Hash the password
-  //       // const hashedPassword = await bcrypt.hash(body.password, 10); // 10 is the salt rounds
-
-  //       const otp = await generateOTP();
-  //       const otpExpiryTime = new Date(new Date().getTime() + 2.5 * 60000); // 2.5 minutes expiry
-
-  //       const userCreated = await strapi.entityService.create(
-  //         "plugin::users-permissions.user",
-  //         {
-  //           data: {
-  //             name: body?.name,
-  //             phone: body?.phone,
-  //             email: body?.email,
-  //             dateOfBirth: body?.dateOfBirth, // New field
-  //             gender: body?.gender, // New field
-  //             password: body.password, // Store hashed password
-  //             role: role.id,
-  //             otp: otp,
-  //             otpExpiryTime: otpExpiryTime,
-  //             publishedAt: new Date().getTime(),
-  //             confirmed: false, // User is not confirmed until OTP verification
-  //           },
-  //           ...(files?.profileImage && {
-  //             files: {
-  //               profileImage: {
-  //                 ...files.profileImage,
-  //                 type: changeFileMimeType(files.profileImage),
-  //               },
-  //             },
-  //           }),
-  //           populate: {
-  //             profileImage: {
-  //               fields: ["url", "formats"],
-  //             },
-  //           },
-  //         }
-  //       );
-
-  //       // Send OTP based on available contact method
-  //       if (userCreated?.phone) {
-  //         await smsVerifyOtp(otp, userCreated.phone);
-  //       } else if (userCreated?.email) {
-  //         await emailVerifyOtp(otp, userCreated.email);
-  //       }
-
-  //       return ctx.send({
-  //         success: true,
-  //         message:
-  //           "User registered successfully. OTP has been sent for verification.",
-  //         data: {
-  //           user: {
-  //             id: userCreated.id,
-  //             name: userCreated.name,
-  //             email: userCreated.email,
-  //             phone: userCreated.phone,
-  //             dateOfBirth: userCreated.dateOfBirth,
-  //             gender: userCreated.gender,
-  //             otp: otp,
-  //             // Do NOT send OTP or password back in the response
-  //           },
-  //         },
-  //       });
-  //     } catch (error) {
-  //       const customizedError = handleErrors(error);
-  //       return ctx.send(
-  //         {
-  //           success: false,
-  //           message: customizedError.message,
-  //         },
-  //         handleStatusCode(error) || 500
-  //       );
-  //     }
-  //   };
-
   // MARK: callbackWeb Method
   plugin.controllers.auth.callbackWeb = async (ctx) => {
     try {
       const { body } = ctx.request;
       validateBodyRequiredFields(body, ["identifier"]);
 
-      // Determine login type: password-based or OTP-based
-      const isPasswordLogin = body.identifier.includes("@");
+      // Determine login type based on the presence of a 'password' field.
+      const isPasswordLogin = body.password !== undefined;
+      const isEmail = body.identifier.includes("@");
 
       if (isPasswordLogin) {
-        // Password-based login
+        // --- Password-based Login (ONLY for Email) ---
+
+        // Reject password login attempts with a phone number
+        if (!isEmail) {
+          throw new ValidationError(
+            "Password login is not supported for phone numbers."
+          );
+        }
+
         validateBodyRequiredFields(body, ["identifier", "password"]);
 
         const [user] = await strapi.entityService.findMany(
@@ -475,9 +254,7 @@ module.exports = (plugin) => {
         );
 
         if (!user) {
-          throw new NotFoundError(
-            "User is not registered or invalid credentials."
-          );
+          throw new NotFoundError("User not found or invalid credentials.");
         }
 
         // Verify password
@@ -506,7 +283,13 @@ module.exports = (plugin) => {
           },
         });
       } else {
-        // Ensure identifier is a phone number for OTP flow
+        // --- OTP-based Login (ONLY for Phone Number) ---
+
+        // Reject OTP flow if the identifier is an email
+        if (isEmail) {
+          throw new ValidationError("OTP login is not supported for email.");
+        }
+
         if (!isPhoneValid(body.identifier)) {
           throw new ValidationError("Invalid phone number for OTP login.");
         }
@@ -515,21 +298,21 @@ module.exports = (plugin) => {
           "plugin::users-permissions.user",
           {
             filters: {
-              phone: body.identifier, // Only filter by phone for OTP login
+              phone: body.identifier,
             },
           }
         );
 
         if (!user) {
           throw new NotFoundError(
-            "User is not registered with this phone number."
+            "User not registered with this phone number."
           );
         }
 
         const otp = await generateOTP();
         const otpExpiryTime = new Date(new Date().getTime() + 2.5 * 60000);
 
-        const userUpdated = await strapi.entityService.update(
+        await strapi.entityService.update(
           "plugin::users-permissions.user",
           user.id,
           {
@@ -537,21 +320,20 @@ module.exports = (plugin) => {
               otp: otp,
               otpExpiryTime: otpExpiryTime,
             },
-            populate: {},
           }
         );
 
         // Send OTP via SMS
-        // await smsVerifyOtp(otp, userUpdated.phone);
+        // await smsVerifyOtp(otp, user.phone);
 
         return ctx.send({
           success: true,
           message: "OTP has been sent to your phone for verification.",
           data: {
             user: {
-              id: userUpdated.id,
-              phone: userUpdated.phone,
-              otp: otp, // Temporarily added for testing as per request
+              id: user.id,
+              phone: user.phone,
+              otp: otp, // Temporarily added for testing
             },
           },
         });
@@ -567,6 +349,120 @@ module.exports = (plugin) => {
       );
     }
   };
+
+  // // MARK: callbackWeb Method
+  // plugin.controllers.auth.callbackWeb = async (ctx) => {
+  //   try {
+  //     const { body } = ctx.request;
+  //     validateBodyRequiredFields(body, ["identifier"]);
+
+  //     // Determine login type: password-based or OTP-based
+  //     const isPasswordLogin = body.identifier.includes("@");
+
+  //     if (isPasswordLogin) {
+  //       // Password-based login
+  //       validateBodyRequiredFields(body, ["identifier", "password"]);
+
+  //       const [user] = await strapi.entityService.findMany(
+  //         "plugin::users-permissions.user",
+  //         {
+  //           filters: { email: body.identifier },
+  //         }
+  //       );
+
+  //       if (!user) {
+  //         throw new NotFoundError(
+  //           "User is not registered or invalid credentials."
+  //         );
+  //       }
+
+  //       // Verify password
+  //       const isPasswordValid = await bcrypt.compare(
+  //         body.password,
+  //         user.password
+  //       );
+  //       if (!isPasswordValid) {
+  //         throw new UnauthorizedError("Invalid credentials.");
+  //       }
+
+  //       // Direct login success: Issue JWT
+  //       return ctx.send({
+  //         success: true,
+  //         message: "Login successful.",
+  //         data: {
+  //           jwt: getService("jwt").issue({ id: user.id }),
+  //           user: {
+  //             id: user.id,
+  //             name: user.name,
+  //             email: user.email,
+  //             phone: user.phone,
+  //             dateOfBirth: user.dateOfBirth,
+  //             gender: user.gender,
+  //           },
+  //         },
+  //       });
+  //     } else {
+  //       // Ensure identifier is a phone number for OTP flow
+  //       if (!isPhoneValid(body.identifier)) {
+  //         throw new ValidationError("Invalid phone number for OTP login.");
+  //       }
+
+  //       const [user] = await strapi.entityService.findMany(
+  //         "plugin::users-permissions.user",
+  //         {
+  //           filters: {
+  //             phone: body.identifier, // Only filter by phone for OTP login
+  //           },
+  //         }
+  //       );
+
+  //       if (!user) {
+  //         throw new NotFoundError(
+  //           "User is not registered with this phone number."
+  //         );
+  //       }
+
+  //       const otp = await generateOTP();
+  //       const otpExpiryTime = new Date(new Date().getTime() + 2.5 * 60000);
+
+  //       const userUpdated = await strapi.entityService.update(
+  //         "plugin::users-permissions.user",
+  //         user.id,
+  //         {
+  //           data: {
+  //             otp: otp,
+  //             otpExpiryTime: otpExpiryTime,
+  //           },
+  //           populate: {},
+  //         }
+  //       );
+
+  //       // Send OTP via SMS
+  //       // await smsVerifyOtp(otp, userUpdated.phone);
+
+  //       return ctx.send({
+  //         success: true,
+  //         message: "OTP has been sent to your phone for verification.",
+  //         data: {
+  //           user: {
+  //             id: userUpdated.id,
+  //             phone: userUpdated.phone,
+  //             otp: otp, // Temporarily added for testing as per request
+  //           },
+  //         },
+  //       });
+  //     }
+  //   } catch (error) {
+  //     const customizedError = handleErrors(error);
+  //     return ctx.send(
+  //       {
+  //         success: false,
+  //         message: customizedError.message,
+  //       },
+  //       handleStatusCode(error) || 500
+  //     );
+  //   }
+  // };
 
   // This method will now also handle direct login with password and OTP-only login
   // MARK: callbackWeb Method (Login with email and password OR phone for OTP) ---
@@ -856,94 +752,6 @@ module.exports = (plugin) => {
     }
   };
 
-  //   //MARK:otp verification
-  //   // --- verifyOtp Method ---
-  //   plugin.controllers.auth.verifyOtp = async (ctx) => {
-  //     try {
-  //       const { body } = ctx.request;
-
-  //       // OTP verification can be done with either email or phone, so we keep 'identifier' here,
-  //       // but the logic will prioritize based on the presence of 'email' or 'phone' in the body.
-  //       validateBodyRequiredFields(body, ["otp"]);
-
-  //       let userFilter = {};
-  //       if (body.email) {
-  //         userFilter = { email: body.email };
-  //         validateBodyRequiredFields(body, ["email", "otp"]);
-  //       } else if (body.phone) {
-  //         userFilter = { phone: body.phone };
-  //         validateBodyRequiredFields(body, ["phone", "otp"]);
-  //       } else {
-  //         throw new ValidationError(
-  //           "Either 'email' or 'phone' must be provided for OTP verification."
-  //         );
-  //       }
-
-  //       const [user] = await strapi.entityService.findMany(
-  //         "plugin::users-permissions.user",
-  //         {
-  //           sort: { updatedAt: "desc" },
-  //           filters: {
-  //             ...userFilter, // Use the specific filter (email or phone)
-  //             otp: body?.otp,
-  //             otpExpiryTime: {
-  //               $gt: new Date(),
-  //             },
-  //           },
-  //           populate: {
-  //             profileImage: {
-  //               fields: ["url", "formats"],
-  //             },
-  //           },
-  //         }
-  //       );
-
-  //       if (!user) {
-  //         throw new NotFoundError("Invalid or expired OTP or user not found.");
-  //       }
-
-  //       // Mark user as confirmed after successful OTP verification
-  //       await strapi.entityService.update(
-  //         "plugin::users-permissions.user",
-  //         user.id,
-  //         {
-  //           data: {
-  //             otp: null,
-  //             otpExpiryTime: null,
-  //             confirmed: true, // Mark user as confirmed
-  //           },
-  //         }
-  //       );
-
-  //       return ctx.send({
-  //         success: true,
-  //         message: "User is verified",
-  //         data: {
-  //           jwt: getService("jwt").issue({ id: user.id }),
-  //           user: {
-  //             id: user.id,
-  //             name: user.name,
-  //             email: user.email,
-  //             phone: user.phone,
-  //             dateOfBirth: user.dateOfBirth,
-  //             gender: user.gender,
-  //             // Do NOT return OTP or password
-  //           },
-  //         },
-  //       });
-  //     } catch (error) {
-  //       const customizedError = handleErrors(error);
-
-  //       return ctx.send(
-  //         {
-  //           success: false,
-  //           message: customizedError.message,
-  //         },
-  //         handleStatusCode(error) || 500
-  //       );
-  //     }
-  //   };
-
   // MARK: Logout Method ---
   plugin.controllers.auth.logout = async (ctx) => {
     try {
@@ -1060,7 +868,7 @@ module.exports = (plugin) => {
             "gender",
             "createdAt",
             "updatedAt",
-          ], // Added dateOfBirth and gender
+          ],
           populate: {
             profileImage: {
               fields: ["url", "formats"],
@@ -1200,7 +1008,197 @@ module.exports = (plugin) => {
     }
   };
 
-  //MARK: changePasswordRequest Method ---
+  //MARK:sendEmailOtp
+  plugin.controllers.auth.sendEmailOtp = async (ctx) => {
+    try {
+      const { email } = ctx.request.body;
+      const { id: userId } = ctx.state.user;
+
+      if (!email) {
+        return ctx.badRequest("Email is required");
+      }
+
+      // Generate a random 4-digit OTP
+      const otp = Math.floor(1000 + Math.random() * 9000).toString();
+
+      // Save OTP using entityService to ensure the update is successful
+    await strapi.entityService.update(
+      "plugin::users-permissions.user",
+      userId,
+      {
+        data: {
+          pendingEmail: email,
+          emailOtp: otp, // <-- This field should now be correctly saved
+          emailOtpExpires: new Date(Date.now() + 10 * 60 * 1000),
+        },
+      }
+    );
+
+      // DEV MODE: return OTP in response for testing
+      return ctx.send({
+        success: true,
+        message: "Email verification OTP sent",
+        otp, // 🔹 OTP is returned here for development testing
+      });
+    } catch (err) {
+      return ctx.badImplementation(err.message);
+    }
+  };
+
+  // MARK:verifyEmail
+  (plugin.controllers.auth.verifyEmail = async (ctx) => {
+    try {
+      const { otp } = ctx.request.body;
+      const { id: userId } = ctx.state.user;
+
+      const user = await strapi.entityService.findOne(
+        "plugin::users-permissions.user",
+        userId
+      );
+
+      // 1. Check if user exists
+      if (!user) {
+        throw new ValidationError("User not found.");
+      }
+
+      // Add these logs in your verifyEmail method
+      console.log("OTP from DB:", user.emailOtp);
+      console.log("OTP from request:", otp);
+
+      // 2. Check if the provided OTP matches the one in the database
+      if (user.emailOtp !== otp) {
+        // <-- This is the key change
+        throw new ValidationError("Invalid OTP.");
+      }
+
+      // 3. Check if the OTP has expired
+      if (new Date() > new Date(user.emailOtpExpires)) {
+        throw new ValidationError("Expired OTP.");
+      }
+
+      // Update the user's email and verification status
+      await strapi.entityService.update(
+        "plugin::users-permissions.user",
+        userId,
+        {
+          data: {
+            email: user.pendingEmail,
+            emailVerified: true,
+            emailOtp: null, // Clear the OTP
+            emailOtpExpires: null, // Clear the expiry time
+            pendingEmail: null, // Clear the pending email
+          },
+        }
+      );
+
+      return ctx.send({
+        success: true,
+        message: "Email verified and updated successfully",
+      });
+    } catch (error) {
+      return ctx.send({ success: false, message: error.message }, 400);
+    }
+  }),
+    //MARK:sendMobileOtp
+    (plugin.controllers.auth.sendMobileOtp = async (ctx) => {
+      try {
+        const { phone } = ctx.request.body;
+        const { id: userId } = ctx.state.user;
+
+        if (!phone) {
+          throw new ValidationError("Phone number is required");
+        }
+
+        const otp = Math.floor(1000 + Math.random() * 9000).toString();
+        const otpExpiryTime = new Date(Date.now() + 5 * 60 * 1000); // 5-minute expiry
+
+        // Store the phone in a temporary field until verified
+        await strapi.entityService.update(
+          "plugin::users-permissions.user",
+          userId,
+          {
+            data: {
+              pendingPhone: phone, // <-- Use a pending field for security
+              phoneVerificationCode: otp,
+              phoneVerificationExpires: otpExpiryTime,
+              phoneVerified: false,
+            },
+          }
+        );
+
+        // DEBUG: Log the OTP and its expiry
+        console.log(`[sendMobileOtp] Generated OTP for user ${userId}: ${otp}`);
+        console.log(`[sendMobileOtp] OTP expires at: ${otpExpiryTime}`);
+
+        // Your SMS gateway code goes here
+        // await smsService.send(phone, `Your OTP is: ${otp}`);
+
+        return ctx.send({
+          success: true,
+          message: "OTP sent to phone",
+          otp,
+        });
+      } catch (error) {
+        return ctx.send({ success: false, message: error.message }, 400);
+      }
+    });
+
+  // MARK:verifyMobile
+  plugin.controllers.auth.verifyMobile = async (ctx) => {
+    try {
+      const { otp } = ctx.request.body;
+      const { id: userId } = ctx.state.user;
+
+      const user = await strapi.entityService.findOne(
+        "plugin::users-permissions.user",
+        userId
+      );
+
+      // DEBUG: Log the values for comparison
+      console.log(`[verifyMobile] User ID: ${userId}`);
+      console.log(`[verifyMobile] OTP from request: ${otp}`);
+      console.log(`[verifyMobile] OTP from DB: ${user?.phoneVerificationCode}`);
+      console.log(`[verifyMobile] Current time: ${new Date()}`);
+      console.log(
+        `[verifyMobile] OTP expiry time: ${user?.phoneVerificationExpires}`
+      );
+
+      // Check if user exists, OTP matches, and OTP is not expired
+      if (
+        !user ||
+        user.phoneVerificationCode !== otp ||
+        new Date() > new Date(user.phoneVerificationExpires)
+      ) {
+        throw new ValidationError("Invalid or expired OTP.");
+      }
+
+      await strapi.entityService.update(
+        "plugin::users-permissions.user",
+        userId,
+        {
+          data: {
+            phone: user.pendingPhone,
+            phoneVerified: true,
+            phoneVerificationCode: null,
+            phoneVerificationExpires: null,
+            pendingPhone: null,
+          },
+        }
+      );
+
+      console.log(`[verifyMobile] User ${userId} phone successfully verified.`);
+
+      return ctx.send({
+        success: true,
+        message: "Phone verified successfully",
+      });
+    } catch (error) {
+      console.error("[verifyMobile] Error:", error.message);
+      return ctx.send({ success: false, message: error.message }, 400);
+    }
+  };
+
+  //MARK:changePasswordRequest
   plugin.controllers.auth.changePasswordRequest = async (ctx) => {
     try {
       const { body } = ctx.request;
@@ -1248,11 +1246,6 @@ module.exports = (plugin) => {
           data: {
             otp: otp,
             otpExpiryTime: otpExpiryTime,
-            // Temporarily store new password hash until OTP is verified.
-            // This is a common pattern, but consider if this poses a security risk for your application.
-            // Alternatively, the new password could be passed in the verify OTP step.
-            // For simplicity and to avoid passing sensitive data repeatedly, we'll store it here.
-            // A more robust solution might involve a temporary token instead of storing the new password.
             tempNewPassword: body.newPassword,
           },
         }
@@ -1285,7 +1278,7 @@ module.exports = (plugin) => {
     }
   };
 
-  //MARK: changePasswordVerifyOtp Method ---
+  //MARK:changePasswordVerifyOtp
   plugin.controllers.auth.changePasswordVerifyOtp = async (ctx) => {
     try {
       const { body } = ctx.request;
@@ -1346,152 +1339,46 @@ module.exports = (plugin) => {
     }
   };
 
-
-
-  // MARK:forgotPasswordRequestAuth(for authenticated user who forgot password)
-  plugin.controllers.auth.forgotPasswordRequestAuth = async (ctx) => {
-    try {
-      const { id: userId } = ctx.state.user;
-
-      const user = await strapi.entityService.findOne(
-        "plugin::users-permissions.user",
-        userId,
-        { fields: ["email", "phone"] }
-      );
-
-      if (!user) {
-        throw new NotFoundError("User not found.");
-      }
-
-      const otp = await generateOTP();
-      const otpExpiryTime = new Date(new Date().getTime() + 2.5 * 60000);
-
-      await strapi.entityService.update(
-        "plugin::users-permissions.user",
-        userId,
-        {
-          data: {
-            otp: otp,
-            otpExpiryTime: otpExpiryTime,
-          },
-        }
-      );
-
-      if (user.email) {
-        await emailVerifyOtp(otp, user.email);
-      }
-      if (user.phone) {
-        await smsVerifyOtp(otp, user.phone);
-      }
-
-      return ctx.send({
-        success: true,
-        message: "OTP sent to your registered contact for password reset.",
-        data: { otp: otp },
-      });
-    } catch (error) {
-      const customizedError = handleErrors(error);
-      return ctx.send(
-        {
-          success: false,
-          message: customizedError.message,
-        },
-        handleStatusCode(error) || 500
-      );
-    }
-  };
-
-  // MARK: forgotPasswordVerifyOtpAuth Method (for authenticated user)
-  plugin.controllers.auth.forgotPasswordVerifyOtpAuth = async (ctx) => {
-    try {
-      const { body } = ctx.request;
-      const { id: userId } = ctx.state.user;
-
-      validateBodyRequiredFields(body, ["otp"]);
-
-      const user = await strapi.entityService.findOne(
-        "plugin::users-permissions.user",
-        userId,
-        { fields: ["otp", "otpExpiryTime"] }
-      );
-
-      if (!user) {
-        throw new NotFoundError("User not found.");
-      }
-
-      if (user.otp !== body.otp || new Date() > new Date(user.otpExpiryTime)) {
-        throw new UnauthorizedError("Invalid or expired OTP.");
-      }
-
-      await strapi.entityService.update(
-        "plugin::users-permissions.user",
-        userId,
-        {
-          data: {
-            otp: null,
-            otpExpiryTime: null,
-            passwordResetVerified: true,
-          },
-        }
-      );
-
-      return ctx.send({
-        success: true,
-        message: "OTP verified successfully. You can now reset your password.",
-      });
-    } catch (error) {
-      const customizedError = handleErrors(error);
-      return ctx.send(
-        {
-          success: false,
-          message: customizedError.message,
-        },
-        handleStatusCode(error) || 500
-      );
-    }
-  };
-
-  // MARK: forgotPasswordConfirmAuth Method (for authenticated user)
+  // MARK: forgotPasswordConfirmAuth(for authenticated user - no OTP)
   plugin.controllers.auth.forgotPasswordConfirmAuth = async (ctx) => {
     try {
       const { body } = ctx.request;
-      const { id: userId } = ctx.state.user;
+      const { id: userId } = ctx.state.user; // Authenticated user's ID
 
+      // Validate required fields
       validateBodyRequiredFields(body, ["newPassword", "confirmNewPassword"]);
 
       if (body.newPassword !== body.confirmNewPassword) {
-        throw new ValidationError("New password and confirm new password do not match.");
+        throw new ValidationError(
+          "New password and confirm new password do not match."
+        );
       }
 
+      // Ensure user exists
       const user = await strapi.entityService.findOne(
         "plugin::users-permissions.user",
         userId,
-        { fields: ["passwordResetVerified"] }
+        { fields: ["id"] }
       );
 
       if (!user) {
         throw new NotFoundError("User not found.");
       }
 
-      if (!user.passwordResetVerified) {
-        throw new UnauthorizedError("OTP verification required before changing password.");
-      }
-
-      const hashedPassword = await bcrypt.hash(body.newPassword, 10);
+      // Update password without hashing
       await strapi.entityService.update(
         "plugin::users-permissions.user",
         userId,
         {
           data: {
-            password: hashedPassword,
-            passwordResetVerified: false,
+            password: body.newPassword, // Plain text
           },
         }
       );
 
       return ctx.send({
         success: true,
-        message: "Password reset successfully.",
+        message: "Password updated successfully.",
       });
     } catch (error) {
       const customizedError = handleErrors(error);
@@ -1505,7 +1392,7 @@ module.exports = (plugin) => {
     }
   };
 
-  // MARK: forgotPasswordRequest Method (for an unauthorized user)
+  // MARK:forgotPasswordRequest(for an unauthorized user)
   plugin.controllers.auth.forgotPasswordRequest = async (ctx) => {
     try {
       const { body } = ctx.request;
@@ -1563,7 +1450,7 @@ module.exports = (plugin) => {
     }
   };
 
-  // MARK: forgotPasswordVerifyOtp Method (for an unauthorized user)
+  // MARK: forgotPasswordVerifyOtp(for an unauthorized user)
   plugin.controllers.auth.forgotPasswordVerifyOtp = async (ctx) => {
     try {
       const { body } = ctx.request;
@@ -1583,7 +1470,9 @@ module.exports = (plugin) => {
       );
 
       if (!user || user.length === 0) {
-        throw new UnauthorizedError("Invalid or expired OTP, or user not found.");
+        throw new UnauthorizedError(
+          "Invalid or expired OTP, or user not found."
+        );
       }
 
       const userData = user[0];
@@ -1615,7 +1504,7 @@ module.exports = (plugin) => {
     }
   };
 
-  // MARK: forgotPasswordConfirm Method (for an unauthorized user)
+  // MARK: forgotPasswordConfirm(for an unauthorized user) - NO HASHING
   plugin.controllers.auth.forgotPasswordConfirm = async (ctx) => {
     try {
       const { body } = ctx.request;
@@ -1626,32 +1515,35 @@ module.exports = (plugin) => {
       ]);
 
       if (body.newPassword !== body.confirmNewPassword) {
-        throw new ValidationError("New password and confirm new password do not match.");
+        throw new ValidationError(
+          "New password and confirm new password do not match."
+        );
       }
 
-      const user = await strapi.entityService.findMany(
+      const [user] = await strapi.entityService.findMany(
         "plugin::users-permissions.user",
         {
           filters: {
             $or: [{ email: body.identifier }, { phone: body.identifier }],
             passwordResetVerified: true,
+            otp: null,
           },
         }
       );
 
-      if (!user || user.length === 0) {
-        throw new UnauthorizedError("OTP verification is required before changing password, or user not found.");
+      if (!user) {
+        throw new UnauthorizedError(
+          "OTP verification is required before changing password, or user not found."
+        );
       }
 
-      const userData = user[0];
-      const hashedPassword = await bcrypt.hash(body.newPassword, 10);
-
+      // Directly update password without hashing (NOT recommended for production)
       await strapi.entityService.update(
         "plugin::users-permissions.user",
-        userData.id,
+        user.id,
         {
           data: {
-            password: hashedPassword,
+            password: body.newPassword,
             passwordResetVerified: false,
           },
         }
@@ -1659,7 +1551,8 @@ module.exports = (plugin) => {
 
       return ctx.send({
         success: true,
-        message: "Password reset successfully. You can now log in with your new password.",
+        message:
+          "Password reset successfully. You can now log in with your new password.",
       });
     } catch (error) {
       const customizedError = handleErrors(error);
@@ -1673,9 +1566,7 @@ module.exports = (plugin) => {
     }
   };
 
-
-
-  // MARK: deleteAccount Method ---
+  // MARK: deleteAccount Method
   plugin.controllers.auth.deleteAccount = async (ctx) => {
     try {
       const { id: userId } = ctx.state.user;
@@ -1713,7 +1604,7 @@ module.exports = (plugin) => {
     }
   };
 
-  //MARK: Routes ---
+  //MARK: Routes
   plugin.routes["content-api"].routes.push(
     {
       method: "POST",
@@ -1789,8 +1680,8 @@ module.exports = (plugin) => {
     },
     {
       method: "POST",
-      path: "/auth/forgotPasswordRequestAuth",
-      handler: "auth.forgotPasswordRequestAuth",
+      path: "/auth/sendEmailOtp",
+      handler: "auth.sendEmailOtp",
       config: {
         middlewares: ["plugin::users-permissions.rateLimit"],
         prefix: "",
@@ -1798,8 +1689,26 @@ module.exports = (plugin) => {
     },
     {
       method: "POST",
-      path: "/auth/forgotPasswordVerifyOtpAuth",
-      handler: "auth.forgotPasswordVerifyOtpAuth",
+      path: "/auth/verifyEmail",
+      handler: "auth.verifyEmail",
+      config: {
+        middlewares: ["plugin::users-permissions.rateLimit"],
+        prefix: "",
+      },
+    },
+    {
+      method: "POST",
+      path: "/auth/sendMobileOtp",
+      handler: "auth.sendMobileOtp",
+      config: {
+        middlewares: ["plugin::users-permissions.rateLimit"],
+        prefix: "",
+      },
+    },
+    {
+      method: "POST",
+      path: "/auth/verifyMobile",
+      handler: "auth.verifyMobile",
       config: {
         middlewares: ["plugin::users-permissions.rateLimit"],
         prefix: "",

@@ -9,23 +9,23 @@ module.exports = {
     },
     {
       method: 'POST',
-      path: '/products/:productId/wishlist',
-      handler: 'api::product.product.addToWishlist',
+      path: '/products/toggleWishlist/:productId',
+      handler: 'api::product.product.toggleWishlist',
     },
-    {
-      method: 'DELETE',
-      path: '/products/:productId/wishlist',
-      handler: 'api::product.product.removeFromWishlist',
-    },
+    // {
+    //   method: 'DELETE',
+    //   path: '/products/:productId/wishlist',
+    //   handler: 'api::product.product.removeFromWishlist',
+    // },
     {
       method: 'GET',
       path: '/products/my-wishlist',
       handler: 'api::product.product.getMyWishlist',
     },
-    { 
-      method: 'DELETE',
-      path: '/products/my-wishlist/clear',
-      handler: 'api::product.product.clearMyWishlist',
-    },
+    // { 
+    //   method: 'DELETE',
+    //   path: '/products/my-wishlist/clear',
+    //   handler: 'api::product.product.clearMyWishlist',
+    // },
   ],
 };

@@ -370,6 +370,11 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
           },
         },
         localizations: true,
+        // localizations: {
+        //   filters: {
+        //     locale: "en" ,
+        //   }
+        // },
       };
        // Extract locale from the query, defaulting to 'en' if not provided
       const locale = query.locale || 'en';
@@ -539,6 +544,7 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
         start: start,
         limit: limit,
         locale: locale,
+
       };
 
       const products = await strapi.entityService.findMany(
@@ -1736,250 +1742,133 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
   //     }
   // },
 
-  //MARK:ADD WHISHLIST
-  async addToWishlist(ctx) {
-    try {
-      const { id: userId } = ctx.state.user;
-      const { productId } = ctx.params; // Product ID from URL parameters
+// MARK: Toggle Wishlist + Return Updated Wishlist
+async toggleWishlist(ctx) {
+  try {
+    const { id: userId } = ctx.state.user;
+    const { productId } = ctx.params;
 
-      const product = await strapi.entityService.findOne(
-        "api::product.product",
-        productId,
-        { populate: ["wishlistedByUsers"] } // Populate to check existing users
-      );
+    // 1. Find product with wishlistedByUsers
+    const product = await strapi.entityService.findOne(
+      "api::product.product",
+      productId,
+      { populate: ["wishlistedByUsers"] }
+    );
 
-      if (!product) {
-        throw new NotFoundError("Product not found.");
-      }
-
-      // Check if user has already wishlisted this product
-      const isAlreadyWishlisted = product.wishlistedByUsers.some(
-        (user) => user.id === userId
-      );
-
-      if (isAlreadyWishlisted) {
-        return ctx.send({
-          success: true,
-          message: "Product is already in your wishlist.",
-          data: {
-            product_id: productId,
-            user_id: userId,
-          },
-        });
-      }
-
-      // Add the user to the product's 'wishlistedByUsers' relation
-      const updatedProduct = await strapi.entityService.update(
-        "api::product.product",
-        productId,
-        {
-          data: {
-            wishlistedByUsers: [
-              ...product.wishlistedByUsers.map((u) => u.id),
-              userId,
-            ],
-          },
-          populate: ["wishlistedByUsers"], // Populate updated relation for response
-        }
-      );
-
-      return ctx.send({
-        success: true,
-        message: "Product added to wishlist.",
-        data: {
-          product_id: updatedProduct.id,
-          wishlisted_by_user_ids: updatedProduct.wishlistedByUsers.map(
-            (u) => u.id
-          ),
-        },
-      });
-    } catch (error) {
-      const customizedError = handleErrors(error);
-      return ctx.send(
-        { success: false, message: customizedError.message },
-        handleStatusCode(error) || 500
-      );
+    if (!product) {
+      throw new NotFoundError("Product not found.");
     }
-  },
 
-  // 2. Remove Product from Wishlist Method
-  // DELETE /api/products/:productId/wishlist
-  async removeFromWishlist(ctx) {
-    try {
-      const { id: userId } = ctx.state.user;
-      const { productId } = ctx.params; // Product ID from URL parameters
+    const isWishlisted = product.wishlistedByUsers.some(
+      (user) => user.id === userId
+    );
 
-      const product = await strapi.entityService.findOne(
-        "api::product.product",
-        productId,
-        { populate: ["wishlistedByUsers"] } // Populate to check existing users
-      );
+    let updatedWishlistUsers;
+    let message;
 
-      if (!product) {
-        throw new NotFoundError("Product not found.");
-      }
-
-      // Check if user has actually wishlisted this product
-      const isWishlisted = product.wishlistedByUsers.some(
-        (user) => user.id === userId
-      );
-
-      if (!isWishlisted) {
-        return ctx.send({
-          success: true,
-          message: "Product is not in your wishlist.",
-          data: {
-            product_id: productId,
-            user_id: userId,
-          },
-        });
-      }
-
-      // Remove the user from the product's 'wishlistedByUsers' relation
-      const updatedProduct = await strapi.entityService.update(
-        "api::product.product",
-        productId,
-        {
-          data: {
-            // Filter out the current user's ID from the relation
-            wishlistedByUsers: product.wishlistedByUsers
-              .filter((u) => u.id !== userId)
-              .map((u) => u.id),
-          },
-          populate: ["wishlistedByUsers"], // Populate updated relation for response
-        }
-      );
-
-      return ctx.send({
-        success: true,
-        message: "Product removed from wishlist.",
-        data: {
-          product_id: updatedProduct.id,
-          wishlisted_by_user_ids: updatedProduct.wishlistedByUsers.map(
-            (u) => u.id
-          ),
-        },
-      });
-    } catch (error) {
-      const customizedError = handleErrors(error);
-      return ctx.send(
-        { success: false, message: customizedError.message },
-        handleStatusCode(error) || 500
-      );
+    if (isWishlisted) {
+      // Remove from wishlist
+      updatedWishlistUsers = product.wishlistedByUsers
+        .filter((u) => u.id !== userId)
+        .map((u) => u.id);
+      message = "Product removed from wishlist.";
+    } else {
+      // Add to wishlist
+      updatedWishlistUsers = [
+        ...product.wishlistedByUsers.map((u) => u.id),
+        userId,
+      ];
+      message = "Product added to wishlist.";
     }
-  },
 
-  // 3. Get User's Wishlist (all products wishlisted by the current user)
-  // GET /api/products/my-wishlist
-  async getMyWishlist(ctx) {
-    try {
-      const { id: userId } = ctx.state.user;
-
-      const wishlistedProducts = await strapi.entityService.findMany(
-        "api::product.product",
-        {
-          filters: {
-            // Filter products where 'wishlistedByUsers' relation contains the current user's ID
-            wishlistedByUsers: userId,
-          },
-          populate: {
-            image: {
-              fields: ["url", "name", "alternativeText"],
-            },
-            category: {
-              // Populate category if needed
-              fields: ["name"],
-            },
-            reviews: {
-              // <-- ADDED: Populate reviews for wishlist display
-              fields: ["rating", "comment", "createdAt"],
-              populate: { user: { fields: ["username"] } }, // Get reviewer's username
-            },
-          },
-          // You can't easily sort by "added date" with this model, as there's no specific timestamp on the join table.
-          // Sorting here would be by product fields like name, price, or creation date of the product.
-          sort: [{ createdAt: "desc" }], // Example: sort by product creation date
-        }
-      );
-
-      if (!wishlistedProducts || wishlistedProducts.length === 0) {
-        return ctx.send({
-          success: true,
-          message: "Your wishlist is empty.",
-          data: {
-            products: [],
-            total_items_in_wishlist: 0,
-          },
-        });
+    // 2. Update wishlist relation
+    await strapi.entityService.update(
+      "api::product.product",
+      productId,
+      {
+        data: { wishlistedByUsers: updatedWishlistUsers },
       }
+    );
 
-      return ctx.send({
-        success: true,
-        message: "Wishlist retrieved successfully.",
-        data: {
+    // 3. Get updated wishlist products for the current user
+    const wishlistedProducts = await strapi.entityService.findMany(
+      "api::product.product",
+      {
+        filters: { wishlistedByUsers: userId },
+        populate: {
+          image: {
+            fields: ["url", "name", "alternativeText"],
+          },
+          category: { fields: ["name"] },
+          reviews: {
+            fields: ["rating", "comment", "createdAt"],
+            populate: { user: { fields: ["name"] } },
+          },
+        },
+        sort: [{ createdAt: "desc" }],
+      }
+    );
+
+    return ctx.send({
+      success: true,
+      message,
+      data: {
+        product_id: productId,
+        isWishlisted: !isWishlisted,
+        wishlist: {
           products: wishlistedProducts,
           total_items_in_wishlist: wishlistedProducts.length,
-          user_id: userId,
         },
-      });
-    } catch (error) {
-      const customizedError = handleErrors(error);
-      return ctx.send(
-        { success: false, message: customizedError.message },
-        handleStatusCode(error) || 500
-      );
-    }
-  },
+      },
+    });
+  } catch (error) {
+    const customizedError = handleErrors(error);
+    return ctx.send(
+      { success: false, message: customizedError.message },
+      handleStatusCode(error) || 500
+    );
+  }
+},
 
-  // 4. Clear User's Entire Wishlist (remove all products from their wishlist)
-  // DELETE /api/products/my-wishlist/clear
-  async clearMyWishlist(ctx) {
-    try {
-      const { id: userId } = ctx.state.user;
+// GET /api/products/my-wishlist
+async getMyWishlist(ctx) {
+  try {
+    const { id: userId } = ctx.state.user;
 
-      // Find all products currently wishlisted by the user
-      const productsToClear = await strapi.entityService.findMany(
-        "api::product.product",
-        {
-          filters: {
-            wishlistedByUsers: userId,
+    const wishlistedProducts = await strapi.entityService.findMany(
+      "api::product.product",
+      {
+        filters: {
+          wishlistedByUsers: userId, // Only products where current user is in wishlist
+        },
+        populate: {
+          image: { fields: ["url", "name", "alternativeText"] },
+          category: { fields: ["name"] },
+          reviews: {
+            fields: ["rating", "comment", "createdAt"],
+            populate: { user: { fields: ["name"] } }, // FIXED: replaced username
           },
-          populate: ["wishlistedByUsers"], // Need to populate to update the relation
-        }
-      );
-
-      if (!productsToClear || productsToClear.length === 0) {
-        return ctx.send({
-          success: true,
-          message: "Your wishlist is already empty.",
-          data: null,
-        });
+        },
+        sort: [{ createdAt: "desc" }],
       }
+    );
 
-      // For each product, remove the current user from its wishlistedByUsers relation
-      for (const product of productsToClear) {
-        await strapi.entityService.update("api::product.product", product.id, {
-          data: {
-            wishlistedByUsers: product.wishlistedByUsers
-              .filter((u) => u.id !== userId)
-              .map((u) => u.id),
-          },
-        });
-      }
-
-      return ctx.send({
-        success: true,
-        message: "Your wishlist has been cleared.",
-        data: null,
-      });
-    } catch (error) {
-      const customizedError = handleErrors(error);
-      return ctx.send(
-        { success: false, message: customizedError.message },
-        handleStatusCode(error) || 500
-      );
-    }
-  },
+    return ctx.send({
+      success: true,
+      message: "Wishlist retrieved successfully.",
+      data: {
+        products: wishlistedProducts,
+        total_items_in_wishlist: wishlistedProducts.length,
+      },
+    });
+  } catch (error) {
+    const customizedError = handleErrors(error);
+    return ctx.send(
+      { success: false, message: customizedError.message },
+      handleStatusCode(error) || 500
+    );
+  }
+},
 
   //MARK: Add a review to a product
   // POST /api/products/:productId/review

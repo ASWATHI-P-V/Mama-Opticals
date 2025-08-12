@@ -1,12 +1,5 @@
 'use strict';
 
-/**
- * custom-cart router.
- *
- * This file defines custom API routes for the 'Cart' content type,
- * linking them to custom methods in the 'Cart' controller.
- */
-
 module.exports = {
   routes: [
     {
@@ -27,10 +20,14 @@ module.exports = {
       
     },
     {
-      method: "DELETE",
+      method: "POST",
       path: "/cart/clear",
       handler: "cart.clearCart", // Maps to the clearCart method
-      
+    },
+    {
+      method: "GET",
+      path: "/cart/summary",
+      handler: "cart.getCartSummary", // Maps to the getCartSummary method
     },
   ],
 };

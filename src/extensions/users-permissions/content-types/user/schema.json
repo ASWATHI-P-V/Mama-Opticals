@@ -99,7 +99,7 @@
       "required": true
     },
     "tempNewPassword": {
-      "type": "string",
+      "type": "text",
       "private": true,
       "description": "Temporary storage for new password hash during password change flow"
     },
@@ -144,6 +144,40 @@
       "relation": "oneToMany",
       "target": "api::chat-message.chat-message",
       "mappedBy": "user"
+    },
+    "emailVerified": {
+      "type": "boolean",
+      "default": false
+    },
+    "phoneVerified": {
+      "type": "boolean",
+      "default": false
+    },
+    "emailVerificationCode": {
+      "type": "string"
+    },
+    "phoneVerificationCode": {
+      "type": "string"
+    },
+    "pendingEmail": {
+      "type": "email",
+      "private": true
+    },
+    "emailOtp": {
+      "type": "string",
+      "private": true
+    },
+    "emailOtpExpires": {
+      "type": "datetime",
+      "private": true
+    },
+    "pendingPhone": {
+      "type": "string",
+      "private": true
+    },
+    "phoneVerificationExpires": {
+      "type": "datetime",
+      "private": true
     }
   }
 }
