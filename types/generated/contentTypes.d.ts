@@ -513,8 +513,7 @@ export interface ApiBannerBanner extends Schema.CollectionType {
       'admin::user'
     > &
       Attribute.Private;
-    image: Attribute.Media<'images' | 'files' | 'videos' | 'audios'> &
-      Attribute.Required;
+    image: Attribute.Media<'images'> & Attribute.Required;
     isActive: Attribute.Boolean;
     publishedAt: Attribute.DateTime;
     updatedAt: Attribute.DateTime;
@@ -651,7 +650,7 @@ export interface ApiBrandBrand extends Schema.CollectionType {
       'admin::user'
     > &
       Attribute.Private;
-    Image: Attribute.Media<'images' | 'files' | 'videos' | 'audios'> &
+    image: Attribute.Media<'images'> &
       Attribute.SetPluginOptions<{
         i18n: {
           localized: false;
@@ -697,10 +696,10 @@ export interface ApiCartCart extends Schema.CollectionType {
     createdAt: Attribute.DateTime;
     createdBy: Attribute.Relation<'api::cart.cart', 'oneToOne', 'admin::user'> &
       Attribute.Private;
-    product: Attribute.Relation<
+    product_variant: Attribute.Relation<
       'api::cart.cart',
       'oneToOne',
-      'api::product.product'
+      'api::product-variant.product-variant'
     >;
     quantity: Attribute.Integer;
     updatedAt: Attribute.DateTime;
@@ -1248,6 +1247,11 @@ export interface ApiFrameSizeFrameSize extends Schema.CollectionType {
           localized: true;
         };
       }>;
+    product_variants: Attribute.Relation<
+      'api::frame-size.frame-size',
+      'oneToMany',
+      'api::product-variant.product-variant'
+    >;
     publishedAt: Attribute.DateTime;
     updatedAt: Attribute.DateTime;
     updatedBy: Attribute.Relation<
@@ -1665,11 +1669,6 @@ export interface ApiProductVariantProductVariant extends Schema.CollectionType {
   options: {
     draftAndPublish: false;
   };
-  pluginOptions: {
-    i18n: {
-      localized: true;
-    };
-  };
   attributes: {
     color_picker: Attribute.String &
       Attribute.CustomField<'plugin::color-picker.color'>;
@@ -1682,42 +1681,19 @@ export interface ApiProductVariantProductVariant extends Schema.CollectionType {
       Attribute.Private;
     frame_size: Attribute.Relation<
       'api::product-variant.product-variant',
-      'oneToOne',
+      'manyToOne',
       'api::frame-size.frame-size'
     >;
-    inStock: Attribute.Boolean &
-      Attribute.Required &
-      Attribute.SetPluginOptions<{
-        i18n: {
-          localized: false;
-        };
-      }> &
-      Attribute.DefaultTo<true>;
+    inStock: Attribute.Boolean & Attribute.Required & Attribute.DefaultTo<true>;
     isActive: Attribute.Boolean &
       Attribute.Required &
-      Attribute.SetPluginOptions<{
-        i18n: {
-          localized: false;
-        };
-      }> &
       Attribute.DefaultTo<true>;
-    locale: Attribute.String;
-    localizations: Attribute.Relation<
-      'api::product-variant.product-variant',
-      'oneToMany',
-      'api::product-variant.product-variant'
-    >;
     product: Attribute.Relation<
       'api::product-variant.product-variant',
       'manyToOne',
       'api::product.product'
     >;
     salesCount: Attribute.Integer &
-      Attribute.SetPluginOptions<{
-        i18n: {
-          localized: false;
-        };
-      }> &
       Attribute.SetMinMax<
         {
           min: 0;
@@ -1727,11 +1703,6 @@ export interface ApiProductVariantProductVariant extends Schema.CollectionType {
       Attribute.DefaultTo<0>;
     stock: Attribute.Integer &
       Attribute.Required &
-      Attribute.SetPluginOptions<{
-        i18n: {
-          localized: false;
-        };
-      }> &
       Attribute.SetMinMax<
         {
           min: 1;
@@ -2016,7 +1987,7 @@ export interface ApiTypeType extends Schema.CollectionType {
     createdAt: Attribute.DateTime;
     createdBy: Attribute.Relation<'api::type.type', 'oneToOne', 'admin::user'> &
       Attribute.Private;
-    image: Attribute.Media<'images' | 'files' | 'videos' | 'audios'> &
+    image: Attribute.Media<'images'> &
       Attribute.SetPluginOptions<{
         i18n: {
           localized: false;

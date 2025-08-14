@@ -11,7 +11,7 @@ module.exports = createCoreController('api::brand.brand', ({ strapi }) => ({
     try {
       const queryOptions = {
         locale: locale || 'en',
-        populate: ['Image'] // Populate the non-localized Image field
+        populate: ['image'] // Populate the non-localized Image field
       };
 
       const brands = await strapi.entityService.findMany(
@@ -63,7 +63,7 @@ module.exports = createCoreController('api::brand.brand', ({ strapi }) => ({
         'api::brand.brand',
         id,
         {
-          populate: ['localizations', 'Image'], // Populate localizations and the Image field
+          populate: ['localizations', 'image'], // Populate localizations and the Image field
           locale: defaultLocale,
         }
       );
@@ -87,7 +87,7 @@ module.exports = createCoreController('api::brand.brand', ({ strapi }) => ({
             foundLocalization.id,
             { 
               locale: locale,
-              populate: ['Image'] // Ensure Image is populated for the localized version too
+              populate: ['image'] // Ensure Image is populated for the localized version too
             }
           );
         }

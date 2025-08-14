@@ -10,11 +10,7 @@
   "options": {
     "draftAndPublish": false
   },
-  "pluginOptions": {
-    "i18n": {
-      "localized": true
-    }
-  },
+  "pluginOptions": {},
   "attributes": {
     "product": {
       "type": "relation",
@@ -30,50 +26,35 @@
     },
     "frame_size": {
       "type": "relation",
-      "relation": "oneToOne",
-      "target": "api::frame-size.frame-size"
+      "relation": "manyToOne",
+      "target": "api::frame-size.frame-size",
+      "inversedBy": "product_variants"
     },
     "inStock": {
       "type": "boolean",
       "required": true,
       "default": true,
-      "pluginOptions": {
-        "i18n": {
-          "localized": false
-        }
-      }
+      "pluginOptions": {}
     },
     "stock": {
       "type": "integer",
       "min": 1,
       "default": 0,
       "required": true,
-      "pluginOptions": {
-        "i18n": {
-          "localized": false
-        }
-      }
+      "pluginOptions": {}
     },
     "isActive": {
       "type": "boolean",
       "default": true,
       "required": true,
-      "pluginOptions": {
-        "i18n": {
-          "localized": false
-        }
-      }
+      "pluginOptions": {}
     },
     "salesCount": {
       "type": "integer",
       "min": 0,
       "default": 0,
       "required": false,
-      "pluginOptions": {
-        "i18n": {
-          "localized": false
-        }
-      }
+      "pluginOptions": {}
     }
   }
 }

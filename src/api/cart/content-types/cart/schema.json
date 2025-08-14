@@ -17,10 +17,10 @@
       "relation": "oneToOne",
       "target": "plugin::users-permissions.user"
     },
-    "product": {
+    "product_variant": {
       "type": "relation",
       "relation": "oneToOne",
-      "target": "api::product.product"
+      "target": "api::product-variant.product-variant"
     },
     "quantity": {
       "type": "integer"

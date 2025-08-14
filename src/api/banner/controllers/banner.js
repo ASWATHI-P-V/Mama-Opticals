@@ -10,22 +10,27 @@ const { createCoreController } = require('@strapi/strapi').factories;
 
 module.exports = createCoreController('api::banner.banner', ({ strapi }) => ({
   async find(ctx) {
-    // Call the default `find` action to get the data
-    const { data, meta } = await super.find(ctx);
+    const populate = {
+      image: true,
+    };
+    const banners = await strapi.entityService.findMany(
+      'api::banner.banner',
+      { populate }
+    );
+    
 
     // Transform the data to the desired format
-    const transformedData = data.map(item => {
-      // Extract attributes and remove the 'attributes' wrapper
-      const { id, attributes } = item;
-      const imageUrl = attributes.image && attributes.image.data ?
-                       strapi.config.get('server.url') + attributes.image.data.attributes.url : null;
+    const transformedData = banners.map(item => {
+      // The image relation is now populated, so we can access the url
+      const imageUrl = item.image ?
+                       strapi.config.get('server.url') + item.image.url : null;
 
       return {
-        id: id,
+        id: item.id,
         image_url: imageUrl, // Provide direct URL to the image
-        isActive: attributes.isActive,
-        createdAt: attributes.createdAt,
-        updatedAt: attributes.updatedAt,
+        isActive: item.isActive,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
       };
     });
 

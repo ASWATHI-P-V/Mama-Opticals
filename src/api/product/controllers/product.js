@@ -289,10 +289,108 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
 
   //MARK: Find one product 
 
-    async findOne(ctx) {
+
+
+  async findOne(ctx) {
     try {
       const { id } = ctx.params;
+      const user = ctx.state.user;
+
+      const populate = {
+        image: true,
+        category: true,
+        lens_types: true,
+        lens_coatings: true,
+        frame_weights: true,
+        brands: true,
+        frame_materials: true,
+        frame_shapes: true,
+        lens_thicknesses: true,
+        reviews: true,
+        types: true,
+        best_seller: true,
+        variants: {
+          populate: {
+            color_picker: true,
+            frame_size: true,
+          },
+        },
+      };
+
+      const product = await strapi.entityService.findOne(
+        "api::product.product",
+        id,
+        { populate }
+      );
+
+      if (!product) {
+        throw new NotFoundError("Product not found.");
+      }
+
+      // Check if the current user has wishlisted this product
+      let isWishlisted = false;
+      if (user && user.id) {
+        const wishlistCheck = await strapi.db.query('api::product.product').findOne({
+          where: { id: id, wishlistedByUsers: { id: user.id } },
+          select: ['id'],
+        });
+        isWishlisted = !!wishlistCheck;
+      }
       
+      const sanitizedProduct = await strapiUtils.sanitize.contentAPI.output(
+        product,
+        strapi.contentType("api::product.product")
+      );
+
+      // Extract unique colors and frame sizes from variants
+      const color_picker = new Set();
+      const frameSizes = new Set();
+      
+      if (sanitizedProduct.variants && Array.isArray(sanitizedProduct.variants)) {
+        sanitizedProduct.variants.forEach(variant => {
+          if (variant.color_picker) {
+            color_picker.add(JSON.stringify(variant.color_picker));
+          }
+          if (variant.frame_size) {
+            frameSizes.add(JSON.stringify(variant.frame_size));
+          }
+        });
+      }
+
+      // Final product object with the requested changes
+      const finalProduct = {
+        ...sanitizedProduct,
+        isWishlisted: isWishlisted,
+        color_picker: Array.from(color_picker).map(c => JSON.parse(c)),
+        frame_sizes: Array.from(frameSizes).map(s => JSON.parse(s)),
+        category: sanitizedProduct.category ? [sanitizedProduct.category] : [],
+        average_rating: sanitizedProduct.average_rating,
+        reviewCount: sanitizedProduct.reviewCount,
+      };
+
+      // Remove the old field to clean up the response
+      delete finalProduct.wishlistedByUsers;
+
+      return ctx.send({
+        success: true,
+        message: "Product retrieved successfully.",
+        data: finalProduct,
+      });
+    } catch (error) {
+      const customizedError = handleErrors(error);
+      ctx.status = handleStatusCode(error) || 500;
+      return ctx.send({ success: false, message: customizedError.message });
+    }
+  },
+
+  // MARK: Find all products
+  async find(ctx) {
+    try {
+      const { query } = ctx;
+      const user = ctx.state.user;
+
+      let filters = {};
+      let sort = [];
       
       const populate = {
         image: true,
@@ -309,76 +407,15 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
         best_seller: true,
         variants: {
           populate: {
-            color: true,
-            frame_size: true,
-          },
-        },
-      };
-
-      const product = await strapi.entityService.findOne(
-        "api::product.product",
-        id,
-        { populate }
-      );
-
-      if (!product) {
-        throw new NotFoundError("Product not found.");
-      }
-
-      const sanitizedProduct = await strapiUtils.sanitize.contentAPI.output(
-        product,
-        strapi.contentType("api::product.product")
-      );
-
-      return ctx.send({
-        success: true,
-        message: "Product retrieved successfully.",
-        data: sanitizedProduct,
-      });
-    } catch (error) {
-      const customizedError = handleErrors(error);
-      ctx.status = handleStatusCode(error) || 500;
-      return ctx.send({ success: false, message: customizedError.message });
-    }
-  },
-
-  //MARK: Find all products
-  async find(ctx) {
-    try {
-      const { query } = ctx;
-      let filters = {};
-      let sort = [];
-      const populate = {
-        image: {
-          limit: 1,
-        },
-        category: true,
-        lens_types: true,
-        lens_coatings: true,
-        frame_weights: true,
-        brands: true,
-        frame_materials: true,
-        frame_shapes: true,
-        lens_thicknesses: true,
-        reviews: true,
-        types: true,
-        best_seller: true,
-        variants: {
-          populate: {
-            color: true,
+            color_picker: true,
             frame_size: true,
           },
         },
         localizations: true,
-        // localizations: {
-        //   filters: {
-        //     locale: "en" ,
-        //   }
-        // },
       };
-       // Extract locale from the query, defaulting to 'en' if not provided
+
+      // Extract locale from the query, defaulting to 'en' if not provided
       const locale = query.locale || 'en';
-      // Remove locale from the query object to avoid issues with other filters
       delete query.locale;
 
       // --- 1. Search (using '_q' for fuzzy search across specified fields) ---
@@ -394,7 +431,6 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
           { lens_coatings: { name: { $containsi: query._q } } },
           { lens_thicknesses: { name: { $containsi: query._q } } },
           { frame_weights: { name: { $containsi: query._q } } },
-         
         ];
         delete query._q;
       }
@@ -459,22 +495,20 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
         delete query.frame_weights;
       }
       if (query.rating_gte) {
-        filters.rating = {
-          ...filters.rating,
+        filters.average_rating = {
+          ...filters.average_rating,
           $gte: parseFloat(query.rating_gte),
         };
         delete query.rating_gte;
       }
       if (query.rating_lte) {
-        filters.rating = {
-          ...filters.rating,
+        filters.average_rating = {
+          ...filters.average_rating,
           $lte: parseFloat(query.rating_lte),
         };
         delete query.rating_lte;
       }
       if (query.inStock !== undefined) {
-        // This logic is now on the variant
-        // To filter by inStock, you need to filter the product by the variants.inStock attribute
         filters.variants = {
           ...filters.variants,
           inStock: query.inStock.toLowerCase() === "true",
@@ -482,7 +516,6 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
         delete query.inStock;
       }
       if (query.stock_gte) {
-        // This logic is now on the variant
         filters.variants = {
           ...filters.variants,
           stock: { $gte: parseInt(query.stock_gte) },
@@ -490,14 +523,12 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
         delete query.stock_gte;
       }
       if (query.stock_lte) {
-        // This logic is now on the variant
         filters.variants = {
           ...filters.variants,
           stock: { $lte: parseInt(query.stock_lte) },
         };
         delete query.stock_lte;
       }
-      // UPDATED: Filter by color through the variants relation
       if (query.colors) {
         filters.variants = {
           ...filters.variants,
@@ -505,7 +536,6 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
         };
         delete query.colors;
       }
-      // UPDATED: Filter by size through the variants relation
       if (query.frame_sizes) {
         filters.variants = {
           ...filters.variants,
@@ -544,7 +574,6 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
         start: start,
         limit: limit,
         locale: locale,
-
       };
 
       const products = await strapi.entityService.findMany(
@@ -556,10 +585,19 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
         locale: locale
       });
 
-      // Map over the products to add the 'originalId'
+      // Fetch the authenticated user's wishlist IDs if a user exists
+      let wishlistedIds = new Set();
+      if (user && user.id) {
+        const userWithWishlist = await strapi.db.query('plugin::users-permissions.user').findOne({
+          where: { id: user.id },
+          populate: { wishlistedProducts: { select: ['id'] } },
+        });
+        if (userWithWishlist && userWithWishlist.wishlistedProducts) {
+          userWithWishlist.wishlistedProducts.forEach(item => wishlistedIds.add(item.id));
+        }
+      }
+      
       const productsWithOriginalId = products.map(product => {
-        // If the product has localizations, find the one with the default locale
-        // or just use the current product's ID as the base if it's the default.
         const originalProduct = product.localizations?.find(
           (loc) => loc.locale === 'en'
         );
@@ -568,38 +606,55 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
           originalId: originalProduct ? originalProduct.id : product.id,
         };
       });
-
+      
       const sanitizedProducts = await Promise.all(
-        productsWithOriginalId.map((product) =>
-          sanitize.contentAPI.output(
+        productsWithOriginalId.map(async (product) => {
+          const sanitized = await strapiUtils.sanitize.contentAPI.output(
             product,
             strapi.contentType("api::product.product")
-          )
-        )
+          );
+
+          // Extract unique colors and frame sizes from variants
+          const color_picker = new Set();
+          const frameSizes = new Set();
+          
+          if (sanitized.variants && Array.isArray(sanitized.variants)) {
+            sanitized.variants.forEach(variant => {
+              if (variant.color_picker) {
+                color_picker.add(JSON.stringify(variant.color_picker));
+              }
+              if (variant.frame_size) {
+                frameSizes.add(JSON.stringify(variant.frame_size));
+              }
+            });
+          }
+
+          // Apply the transformations directly
+          const isWishlisted = wishlistedIds.has(sanitized.id);
+          const categoryAsList = sanitized.category ? [sanitized.category] : [];
+
+          // Return the new object with the extracted lists
+          return {
+            ...sanitized,
+            isWishlisted: isWishlisted,
+            color_picker: Array.from(color_picker).map(c => JSON.parse(c)),
+            frame_sizes: Array.from(frameSizes).map(s => JSON.parse(s)),
+            category: categoryAsList,
+            average_rating: sanitized.average_rating,
+            reviewCount: sanitized.reviewCount,
+          };
+        })
       );
-
-      // const sanitizedProducts = await Promise.all(
-      //   products.map((product) =>
-      //     strapiUtils.sanitize.contentAPI.output(
-      //       product,
-      //       strapi.contentType("api::product.product")
-      //     )
-      //   )
-      // );
-
+      
       return ctx.send({
         success: true,
         message: "Products retrieved successfully.",
         data: {
           products: sanitizedProducts,
-          meta: {
-            pagination: {
-              page: page,
-              pageSize: limit,
-              pageCount: Math.ceil(total / limit),
-              total: total,
-            },
-          },
+          page: page,
+          pageSize: limit,
+          pageCount: Math.ceil(total / limit),
+          total: total,
         },
       });
     } catch (error) {
@@ -608,6 +663,328 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
       return ctx.send({ success: false, message: customizedError.message });
     }
   },
+
+  //   async findOne(ctx) {
+  //   try {
+  //     const { id } = ctx.params;
+      
+      
+  //     const populate = {
+  //       image: true,
+  //       category: true,
+  //       lens_types: true,
+  //       lens_coatings: true,
+  //       frame_weights: true,
+  //       brands: true,
+  //       frame_materials: true,
+  //       frame_shapes: true,
+  //       lens_thicknesses: true,
+  //       reviews: true,
+  //       types: true,
+  //       best_seller: true,
+  //       wishlistedByUsers: true,
+  //       variants: {
+  //         populate: {
+  //           color: true,
+  //           frame_size: true,
+  //         },
+  //       },
+  //     };
+
+  //     const product = await strapi.entityService.findOne(
+  //       "api::product.product",
+  //       id,
+  //       { populate }
+  //     );
+
+  //     if (!product) {
+  //       throw new NotFoundError("Product not found.");
+  //     }
+
+  //     const sanitizedProduct = await strapiUtils.sanitize.contentAPI.output(
+  //       product,
+  //       strapi.contentType("api::product.product")
+  //     );
+
+  //     return ctx.send({
+  //       success: true,
+  //       message: "Product retrieved successfully.",
+  //       data: sanitizedProduct,
+  //     });
+  //   } catch (error) {
+  //     const customizedError = handleErrors(error);
+  //     ctx.status = handleStatusCode(error) || 500;
+  //     return ctx.send({ success: false, message: customizedError.message });
+  //   }
+  // },
+
+  // //MARK: Find all products
+  // async find(ctx) {
+  //   try {
+  //     const { query } = ctx;
+  //     let filters = {};
+  //     let sort = [];
+  //     const populate = {
+  //       image: {
+  //         limit: 1,
+  //       },
+  //       category: true,
+  //       lens_types: true,
+  //       lens_coatings: true,
+  //       frame_weights: true,
+  //       brands: true,
+  //       frame_materials: true,
+  //       frame_shapes: true,
+  //       lens_thicknesses: true,
+  //       reviews: true,
+  //       types: true,
+  //       best_seller: true,
+  //       wishlistedByUsers: true,
+  //       variants: {
+  //         populate: {
+  //           color: true,
+  //           frame_size: true,
+  //         },
+  //       },
+  //       localizations: true,
+  //       // localizations: {
+  //       //   filters: {
+  //       //     locale: "en" ,
+  //       //   }
+  //       // },
+  //     };
+  //      // Extract locale from the query, defaulting to 'en' if not provided
+  //     const locale = query.locale || 'en';
+  //     // Remove locale from the query object to avoid issues with other filters
+  //     delete query.locale;
+
+  //     // --- 1. Search (using '_q' for fuzzy search across specified fields) ---
+  //     if (query._q) {
+  //       filters.$or = [
+  //         { name: { $containsi: query._q } },
+  //         { description: { $containsi: query._q } },
+  //         { variants: { color: { name: { $containsi: query._q } } } },
+  //         { brands: { name: { $containsi: query._q } } },
+  //         { frame_materials: { name: { $containsi: query._q } } },
+  //         { frame_shapes: { name: { $containsi: query._q } } },
+  //         { lens_types: { name: { $containsi: query._q } } },
+  //         { lens_coatings: { name: { $containsi: query._q } } },
+  //         { lens_thicknesses: { name: { $containsi: query._q } } },
+  //         { frame_weights: { name: { $containsi: query._q } } },
+         
+  //       ];
+  //       delete query._q;
+  //     }
+
+  //     // --- 2. Filtering ---
+  //     if (query.price_gte) {
+  //       filters.price = { ...filters.price, $gte: parseFloat(query.price_gte) };
+  //       delete query.price_gte;
+  //     }
+  //     if (query.price_lte) {
+  //       filters.price = { ...filters.price, $lte: parseFloat(query.price_lte) };
+  //       delete query.price_lte;
+  //     }
+  //     if (query.offerPrice_gte) {
+  //       filters.offerPrice = {
+  //         ...filters.offerPrice,
+  //         $gte: parseFloat(query.offerPrice_gte),
+  //       };
+  //       delete query.offerPrice_gte;
+  //     }
+  //     if (query.offerPrice_lte) {
+  //       filters.offerPrice = {
+  //         ...filters.offerPrice,
+  //         $lte: parseFloat(query.offerPrice_lte),
+  //       };
+  //       delete query.offerPrice_lte;
+  //     }
+  //     if (query.best_seller !== undefined) {
+  //       filters.best_seller = query.best_seller.toLowerCase() === "true";
+  //       delete query.best_seller;
+  //     }
+  //     if (query.category) {
+  //       filters.category = { name: { $eqi: query.category } };
+  //       delete query.category;
+  //     }
+  //     if (query.brands) {
+  //       filters.brands = { name: { $eqi: query.brands } };
+  //       delete query.brands;
+  //     }
+  //     if (query.frame_materials) {
+  //       filters.frame_materials = { name: { $eqi: query.frame_materials } };
+  //       delete query.frame_materials;
+  //     }
+  //     if (query.frame_shapes) {
+  //       filters.frame_shapes = { name: { $eqi: query.frame_shapes } };
+  //       delete query.frame_shapes;
+  //     }
+  //     if (query.lens_types) {
+  //       filters.lens_types = { name: { $eqi: query.lens_types } };
+  //       delete query.lens_types;
+  //     }
+  //     if (query.lens_coatings) {
+  //       filters.lens_coatings = { name: { $eqi: query.lens_coatings } };
+  //       delete query.lens_coatings;
+  //     }
+  //     if (query.lens_thicknesses) {
+  //       filters.lens_thicknesses = { name: { $eqi: query.lens_thicknesses } };
+  //       delete query.lens_thicknesses;
+  //     }
+  //     if (query.frame_weights) {
+  //       filters.frame_weights = { name: { $eqi: query.frame_weights } };
+  //       delete query.frame_weights;
+  //     }
+  //     if (query.rating_gte) {
+  //       filters.rating = {
+  //         ...filters.rating,
+  //         $gte: parseFloat(query.rating_gte),
+  //       };
+  //       delete query.rating_gte;
+  //     }
+  //     if (query.rating_lte) {
+  //       filters.rating = {
+  //         ...filters.rating,
+  //         $lte: parseFloat(query.rating_lte),
+  //       };
+  //       delete query.rating_lte;
+  //     }
+  //     if (query.inStock !== undefined) {
+  //       // This logic is now on the variant
+  //       // To filter by inStock, you need to filter the product by the variants.inStock attribute
+  //       filters.variants = {
+  //         ...filters.variants,
+  //         inStock: query.inStock.toLowerCase() === "true",
+  //       };
+  //       delete query.inStock;
+  //     }
+  //     if (query.stock_gte) {
+  //       // This logic is now on the variant
+  //       filters.variants = {
+  //         ...filters.variants,
+  //         stock: { $gte: parseInt(query.stock_gte) },
+  //       };
+  //       delete query.stock_gte;
+  //     }
+  //     if (query.stock_lte) {
+  //       // This logic is now on the variant
+  //       filters.variants = {
+  //         ...filters.variants,
+  //         stock: { $lte: parseInt(query.stock_lte) },
+  //       };
+  //       delete query.stock_lte;
+  //     }
+  //     // UPDATED: Filter by color through the variants relation
+  //     if (query.colors) {
+  //       filters.variants = {
+  //         ...filters.variants,
+  //         color: { name: { $eqi: query.colors } },
+  //       };
+  //       delete query.colors;
+  //     }
+  //     // UPDATED: Filter by size through the variants relation
+  //     if (query.frame_sizes) {
+  //       filters.variants = {
+  //         ...filters.variants,
+  //         frame_size: { name: { $eqi: query.frame_sizes } },
+  //       };
+  //       delete query.frame_sizes;
+  //     }
+  //     // --- 3. Sorting ---
+  //     if (query._sort) {
+  //       const sortParams = Array.isArray(query._sort)
+  //         ? query._sort
+  //         : [query._sort];
+  //       sort = sortParams.map((s) => {
+  //         const [field, order] = s.split(":");
+  //         if (field.includes(".")) {
+  //           const [relation, subField] = field.split(".");
+  //           return { [relation]: { [subField]: order.toLowerCase() } };
+  //         }
+  //         return { [field]: order.toLowerCase() };
+  //       });
+  //       delete query._sort;
+  //     } else {
+  //       sort.push({ createdAt: "desc" });
+  //     }
+
+  //     // --- 4. Pagination ---
+  //     const page = parseInt(query.page || 1);
+  //     const pageSize = parseInt(query.pageSize || 10);
+  //     const start = (page - 1) * pageSize;
+  //     const limit = pageSize;
+
+  //     const findOptions = {
+  //       filters: filters,
+  //       sort: sort,
+  //       populate: populate,
+  //       start: start,
+  //       limit: limit,
+  //       locale: locale,
+
+  //     };
+
+  //     const products = await strapi.entityService.findMany(
+  //       "api::product.product",
+  //       findOptions
+  //     );
+  //     const total = await strapi.entityService.count("api::product.product", {
+  //       filters: filters,
+  //       locale: locale
+  //     });
+
+  //     // Map over the products to add the 'originalId'
+  //     const productsWithOriginalId = products.map(product => {
+  //       // If the product has localizations, find the one with the default locale
+  //       // or just use the current product's ID as the base if it's the default.
+  //       const originalProduct = product.localizations?.find(
+  //         (loc) => loc.locale === 'en'
+  //       );
+  //       return {
+  //         ...product,
+  //         originalId: originalProduct ? originalProduct.id : product.id,
+  //       };
+  //     });
+
+  //     const sanitizedProducts = await Promise.all(
+  //       productsWithOriginalId.map((product) =>
+  //         sanitize.contentAPI.output(
+  //           product,
+  //           strapi.contentType("api::product.product")
+  //         )
+  //       )
+  //     );
+
+  //     // const sanitizedProducts = await Promise.all(
+  //     //   products.map((product) =>
+  //     //     strapiUtils.sanitize.contentAPI.output(
+  //     //       product,
+  //     //       strapi.contentType("api::product.product")
+  //     //     )
+  //     //   )
+  //     // );
+
+  //     return ctx.send({
+  //       success: true,
+  //       message: "Products retrieved successfully.",
+  //       data: {
+  //         products: sanitizedProducts,
+  //         meta: {
+  //           pagination: {
+  //             page: page,
+  //             pageSize: limit,
+  //             pageCount: Math.ceil(total / limit),
+  //             total: total,
+  //           },
+  //         },
+  //       },
+  //     });
+  //   } catch (error) {
+  //     const customizedError = handleErrors(error);
+  //     ctx.status = handleStatusCode(error) || 500;
+  //     return ctx.send({ success: false, message: customizedError.message });
+  //   }
+  // },
 
   //MARK: Update product
   async update(ctx) {

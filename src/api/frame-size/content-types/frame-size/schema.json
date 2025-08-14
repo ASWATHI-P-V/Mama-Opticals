@@ -23,6 +23,12 @@
           "localized": true
         }
       }
+    },
+    "product_variants": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::product-variant.product-variant",
+      "mappedBy": "frame_size"
     }
   }
 }
