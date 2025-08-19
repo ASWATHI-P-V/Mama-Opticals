@@ -8,6 +8,11 @@ module.exports = {
       handler: 'api::product.product.find', 
     },
     {
+      method: 'GET',
+      path: '/products/:id/similar',
+      handler: 'api::product.product.findSimilar',
+    },
+    {
       method: 'POST',
       path: '/products/toggleWishlist/:productId',
       handler: 'api::product.product.toggleWishlist',

@@ -1,146 +1,191 @@
 "use strict";
 
+
 const { createCoreController } = require("@strapi/strapi").factories;
 const strapiUtils = require("@strapi/utils");
-const product = require("../../product/controllers/product");
 const { ValidationError, NotFoundError } = strapiUtils.errors;
 
+// Helper function to handle and format errors
 const handleErrors = (error) => {
-  console.error("Error occurred:", error);
-  const errorMessage = String(error.message || '');
+    console.error("Error occurred:", error);
+    const errorMessage = String(error.message || "");
 
-  if (error instanceof ValidationError) {
-    return { message: errorMessage };
-  }
-  if (error instanceof NotFoundError) {
-    return { message: errorMessage };
-  }
-  if (errorMessage.includes("out of stock or insufficient quantity")) {
-    return { message: errorMessage };
-  }
-  if (errorMessage.includes("Your cart is empty.")) {
-    return { message: errorMessage };
-  }
-  return { message: "An unexpected error occurred." };
+    if (error instanceof ValidationError) {
+        return { message: errorMessage };
+    }
+    if (error instanceof NotFoundError) {
+        return { message: errorMessage };
+    }
+    if (errorMessage.includes("out of stock or insufficient quantity")) {
+        return { message: errorMessage };
+    }
+    if (errorMessage.includes("Your cart is empty.")) {
+        return { message: errorMessage };
+    }
+    if (errorMessage.includes("Product not found in cart")) {
+        return { message: errorMessage };
+    }
+    if (errorMessage.includes("Cannot read properties of undefined")) {
+        return { message: "Invalid data structure encountered. Please try again." };
+    }
+    return { message: "An unexpected error occurred." };
 };
 
+// Helper function to map error messages to status codes
 const handleStatusCode = (error) => {
-  if (error instanceof ValidationError) return 400;
-  if (error instanceof NotFoundError) return 404;
-  if (String(error.message || '').includes("out of stock or insufficient quantity")) {
-    return 400;
-  }
-  if (String(error.message || '').includes("Your cart is empty.")) {
-    return 400;
-  }
-  return 500;
+    const errorMessage = String(error.message || "");
+
+    if (error instanceof ValidationError) return 400;
+    if (error instanceof NotFoundError) return 404;
+    if (errorMessage.includes("out of stock or insufficient quantity")) {
+        return 400;
+    }
+    if (errorMessage.includes("Your cart is empty.")) {
+        return 400;
+    }
+    return 500;
 };
 
+// Helper function to validate request body fields
 const validateBodyRequiredFields = (body, fields) => {
-  const missingFields = fields.filter(field => !body[field]);
-  if (missingFields.length > 0) {
-    throw new ValidationError(`Missing required fields: ${missingFields.join(', ')}`);
-  }
+    const missingFields = fields.filter(field => !body[field]);
+    if (missingFields.length > 0) {
+        throw new ValidationError(`Missing required fields: ${missingFields.join(', ')}`);
+    }
 };
 
 module.exports = createCoreController("api::order.order", ({ strapi }) => ({
 
-    // Custom method: Create an order from the user's cart
+    //MARK:Create order 
     // POST /api/orders/create-from-cart
     async createFromCart(ctx) {
         try {
             const { id: userId } = ctx.state.user;
+            if (!userId) {
+                // Return a specific unauthorized error if the user is not authenticated.
+                return ctx.unauthorized("Authentication required to create an order.");
+            }
+
             const requestBody = ctx.request.body || {};
-            
-            // NOTE: The request body should now contain the address ID, not a shippingAddress string
+            // Destructure the expected fields from the request body
             const { address, paymentMethod, orderID } = requestBody.data || requestBody;
 
             // Validate that the request body has the required fields
             validateBodyRequiredFields(requestBody.data || requestBody, ["address", "paymentMethod"]);
 
+            // Fetch cart entries and populate product variant and the master product
             const cartEntries = await strapi.entityService.findMany(
-                "api::cart.cart",
-                {
+                "api::cart.cart", {
                     filters: { user: userId },
-                    populate: { product: true }
+                    populate: { 
+                        product_variant: { 
+                            populate: {
+                                product: true
+                            }
+                        } 
+                    }
                 }
             );
 
+            // Check if the cart is empty before proceeding
             if (!cartEntries || cartEntries.length === 0) {
                 throw new ValidationError("Your cart is empty. Cannot create an order.");
             }
 
             let totalAmount = 0;
-            const productIdsInOrder = [];
-            const productsToUpdateStock = [];
+            const orderItems = [];
+            const variantsToUpdateStock = [];
+            const variantIDsToRemove = [];
 
             for (const cartEntry of cartEntries) {
-                const product = cartEntry.product;
+                const variant = cartEntry.product_variant;
                 const quantity = cartEntry.quantity;
 
-                if (!product) {
-                    throw new NotFoundError(`Product associated with cart entry ID ${cartEntry.id} not found.`);
-                }
-                if (product.inStock === false || product.stock === undefined || product.stock < quantity) {
-                    throw new ValidationError(`Product ${product.name} is out of stock or insufficient quantity (Available: ${product.stock !== undefined ? product.stock : 'N/A'}, Requested: ${quantity}).`);
+                // Validate that the variant and its product exist
+                if (!variant || !variant.product) {
+                    throw new NotFoundError(`Product variant associated with cart entry ID ${cartEntry.id} not found.`);
                 }
 
-                totalAmount += product.price * quantity;
-                productIdsInOrder.push(product.id);
+                const product = variant.product;
 
-                productsToUpdateStock.push({
-                    id: product.id,
-                    newStock: product.stock - quantity
+                // Check for stock at the product variant level
+                if (variant.inStock === false || variant.stock === undefined || variant.stock < quantity) {
+                    throw new ValidationError(
+                        `Product variant ${variant.id} for ${product.name} is out of stock or has insufficient quantity (Available: ${variant.stock !== undefined ? variant.stock : 'N/A'}, Requested: ${quantity}).`
+                    );
+                }
+
+                // Determine the effective price (offerPrice if available, otherwise regular price)
+                const effectivePrice = product.offers && typeof product.offerPrice === 'number'
+                    ? product.offerPrice
+                    : product.price;
+
+                // Calculate total amount
+                totalAmount += effectivePrice * quantity;
+
+                // Store detailed item information for the order history
+                orderItems.push({
+                    product_id: product.id,
+                    product_name: product.name,
+                    quantity: quantity,
+                    price: product.price,
+                    offerPrice: product.offerPrice,
+                    variant_id: variant.id,
+                    variant_color: variant.color_picker ? variant.color_picker.name : null,
+                    variant_frame_size: variant.frame_size ? variant.frame_size.name : null,
                 });
+
+                // Collect stock updates for each variant
+                variantsToUpdateStock.push({
+                    id: variant.id,
+                    newStock: variant.stock - quantity,
+                    salesCount: (variant.salesCount || 0) + quantity,
+                });
+                
+                // Collect cart entry IDs to be removed
+                variantIDsToRemove.push(cartEntry.id);
             }
 
-            // Create the new Order
+            // Create the new Order with detailed item data
             const newOrder = await strapi.entityService.create("api::order.order", {
                 data: {
                     orderID: orderID || `ORD-${Date.now()}-${userId}`,
-                    status: 'confirmed',
+                    status: 'confirmed', // This will trigger the lifecycles.js to set orderedAt
                     user: userId,
-                    products: productIdsInOrder,
+                    items: orderItems, // Store the detailed array of items
                     totalAmount: totalAmount,
                     address: address, 
                     paymentMethod: paymentMethod,
                     paymentStatus: 'pending',
-                    orderedAt: new Date(), 
-                    trackingId: null,
                 },
-                
                 populate: {
                     user: {
-                        
                         fields: ["id", "email", "phone", "name"],
                     },
                     address: {
-                        fields: ["id", "street", "city", "zipCode"],
-                    },
-                    products: {
-                        fields: ['id', 'name', 'price'],
+                        fields: ["id","address_name","phone"],
                     },
                 },
             });
 
-            // Update product stocks
-            for (const productUpdate of productsToUpdateStock) {
+            // Update product variant stocks and sales count
+            for (const variantUpdate of variantsToUpdateStock) {
                 await strapi.entityService.update(
-                    "api::product.product",
-                    productUpdate.id,
-                    {
+                    "api::product-variant.product-variant",
+                    variantUpdate.id, {
                         data: {
-                            stock: productUpdate.newStock,
-                            inStock: productUpdate.newStock > 0
+                            stock: variantUpdate.newStock,
+                            inStock: variantUpdate.newStock > 0,
+                            salesCount: variantUpdate.salesCount
                         }
                     }
                 );
             }
 
-            // Clear the user's cart
-            for (const cartEntry of cartEntries) {
-                await strapi.entityService.delete("api::cart.cart", cartEntry.id);
-            }
+            // Clear the user's cart by deleting all collected cart entries
+            await strapi.db.query("api::cart.cart").deleteMany({
+                where: { id: { $in: variantIDsToRemove } }
+            });
 
             return ctx.send({
                 success: true,
@@ -150,14 +195,14 @@ module.exports = createCoreController("api::order.order", ({ strapi }) => ({
 
         } catch (error) {
             const customizedError = handleErrors(error);
-            return ctx.send(
-                { success: false, message: customizedError.message },
-                handleStatusCode(error) || 500
-            );
+            return ctx.send({
+                success: false,
+                message: customizedError.message
+            }, handleStatusCode(error) || 500);
         }
     },
 
-    // Custom method to get all orders for the authenticated user
+    // MARK:get orders 
     // GET /api/orders/me
     async getMyOrders(ctx) {
         try {
@@ -173,7 +218,9 @@ module.exports = createCoreController("api::order.order", ({ strapi }) => ({
                         products: {
                             fields: ['name', 'price', 'description'],
                         },
-                        address: true
+                        address: {
+                        fields: ["id","address_name","phone"],
+                    },
                     },
                     sort: [{ orderedAt: 'desc' }],
                 }
@@ -230,7 +277,9 @@ module.exports = createCoreController("api::order.order", ({ strapi }) => ({
                             fields: ['name', 'price', 'description'],
                         
                         },
-                        address: true
+                        address: {
+                        fields: ["id","address_name","phone"],
+                    },
                     },
                 }
             );

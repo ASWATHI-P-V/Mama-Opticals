@@ -5,7 +5,7 @@
 const { createCoreController } = require("@strapi/strapi").factories;
 const strapiUtils = require("@strapi/utils");
 const { ValidationError, NotFoundError } = strapiUtils.errors;
-const { sanitize } = require('@strapi/utils');
+const { sanitize } = require("@strapi/utils");
 
 const parseIdsToArray = (input) => {
   if (input === undefined || input === null || input === "") {
@@ -287,9 +287,7 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
     }
   },
 
-  //MARK: Find one product 
-
-
+  //MARK: Find one product
 
   async findOne(ctx) {
     try {
@@ -330,24 +328,43 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
       // Check if the current user has wishlisted this product
       let isWishlisted = false;
       if (user && user.id) {
-        const wishlistCheck = await strapi.db.query('api::product.product').findOne({
-          where: { id: id, wishlistedByUsers: { id: user.id } },
-          select: ['id'],
-        });
+        const wishlistCheck = await strapi.db
+          .query("api::product.product")
+          .findOne({
+            where: { id: id, wishlistedByUsers: { id: user.id } },
+            select: ["id"],
+          });
         isWishlisted = !!wishlistCheck;
       }
-      
+
       const sanitizedProduct = await strapiUtils.sanitize.contentAPI.output(
         product,
         strapi.contentType("api::product.product")
       );
+      // --- START: MODIFICATION TO MAKE BRAND A SINGLE OBJECT WITH ONLY ID AND NAME ---
+      if (
+        sanitizedProduct.brands &&
+        Array.isArray(sanitizedProduct.brands) &&
+        sanitizedProduct.brands.length > 0
+      ) {
+        const brand = sanitizedProduct.brands[0];
+        sanitizedProduct.brands = {
+          id: brand.id,
+          name: brand.name,
+        };
+      } else {
+        sanitizedProduct.brands = null;
+      }
 
       // Extract unique colors and frame sizes from variants
       const color_picker = new Set();
       const frameSizes = new Set();
-      
-      if (sanitizedProduct.variants && Array.isArray(sanitizedProduct.variants)) {
-        sanitizedProduct.variants.forEach(variant => {
+
+      if (
+        sanitizedProduct.variants &&
+        Array.isArray(sanitizedProduct.variants)
+      ) {
+        sanitizedProduct.variants.forEach((variant) => {
           if (variant.color_picker) {
             color_picker.add(JSON.stringify(variant.color_picker));
           }
@@ -361,8 +378,8 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
       const finalProduct = {
         ...sanitizedProduct,
         isWishlisted: isWishlisted,
-        color_picker: Array.from(color_picker).map(c => JSON.parse(c)),
-        frame_sizes: Array.from(frameSizes).map(s => JSON.parse(s)),
+        color_picker: Array.from(color_picker).map((c) => JSON.parse(c)),
+        frame_sizes: Array.from(frameSizes).map((s) => JSON.parse(s)),
         category: sanitizedProduct.category ? [sanitizedProduct.category] : [],
         average_rating: sanitizedProduct.average_rating,
         reviewCount: sanitizedProduct.reviewCount,
@@ -391,7 +408,7 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
 
       let filters = {};
       let sort = [];
-      
+
       const populate = {
         image: true,
         category: true,
@@ -415,7 +432,7 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
       };
 
       // Extract locale from the query, defaulting to 'en' if not provided
-      const locale = query.locale || 'en';
+      const locale = query.locale || "en";
       delete query.locale;
 
       // --- 1. Search (using '_q' for fuzzy search across specified fields) ---
@@ -588,12 +605,29 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
       // Fetch the authenticated user's wishlist IDs if a user exists
       let wishlistedIds = new Set();
       if (user && user.id) {
-        const userWithWishlist = await strapi.db.query('plugin::users-permissions.user').findOne({
-          where: { id: user.id },
-          populate: { wishlistedProducts: { select: ['id'] } },
+        // Find all wishlisted products for the current user and populate their localizations
+        const userWishlistProducts = await strapi.db.query('api::product.product').findMany({
+          where: { wishlistedByUsers: { id: user.id } },
+          select: ['id'],
+          populate: {
+            localizations: {
+              select: ['id'],
+            },
+          },
         });
-        if (userWithWishlist && userWithWishlist.wishlistedProducts) {
-          userWithWishlist.wishlistedProducts.forEach(item => wishlistedIds.add(item.id));
+        
+        if (userWishlistProducts) {
+          userWishlistProducts.forEach(product => {
+            // Add the main product ID to the set
+            wishlistedIds.add(product.id);
+            
+            // Add all localized product IDs to the set
+            if (product.localizations && Array.isArray(product.localizations)) {
+              product.localizations.forEach(localization => {
+                wishlistedIds.add(localization.id);
+              });
+            }
+          });
         }
       }
       
@@ -614,6 +648,17 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
             strapi.contentType("api::product.product")
           );
 
+          // --- START: MODIFICATION TO MAKE BRAND A SINGLE OBJECT WITH ONLY ID AND NAME ---
+                    if (sanitized.brands && Array.isArray(sanitized.brands) && sanitized.brands.length > 0) {
+                        const brand = sanitized.brands[0];
+                        sanitized.brands = {
+                            id: brand.id,
+                            name: brand.name,
+                        };
+                    } else {
+                        sanitized.brands = null;
+                    }
+
           // Extract unique colors and frame sizes from variants
           const color_picker = new Set();
           const frameSizes = new Set();
@@ -630,7 +675,7 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
           }
 
           // Apply the transformations directly
-          const isWishlisted = wishlistedIds.has(sanitized.id);
+          const isWishlisted = wishlistedIds.has(sanitized.originalId);
           const categoryAsList = sanitized.category ? [sanitized.category] : [];
 
           // Return the new object with the extracted lists
@@ -667,8 +712,7 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
   //   async findOne(ctx) {
   //   try {
   //     const { id } = ctx.params;
-      
-      
+
   //     const populate = {
   //       image: true,
   //       category: true,
@@ -771,7 +815,7 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
   //         { lens_coatings: { name: { $containsi: query._q } } },
   //         { lens_thicknesses: { name: { $containsi: query._q } } },
   //         { frame_weights: { name: { $containsi: query._q } } },
-         
+
   //       ];
   //       delete query._q;
   //     }
@@ -1243,7 +1287,245 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
       return ctx.send({ success: false, message: customizedError.message });
     }
   },
+  // // MARK: Find similar products by a product ID
+  // async findSimilar(ctx) {
+  //   try {
+  //     const { id } = ctx.params;
+  //     const { locale } = ctx.query;
 
+  //     // Step 1: Find the original product by its ID
+  //     const originalProduct = await strapi.entityService.findOne(
+  //       "api::product.product",
+  //       id, {
+  //       populate: [
+  //         "brands",
+  //         "category",
+  //         "frame_materials",
+  //         "frame_shapes",
+  //       ],
+  //       locale: locale,
+  //     });
+
+  //     if (!originalProduct) {
+  //       throw new NotFoundError("Product not found.");
+  //     }
+
+  //     // Step 2: Extract relevant IDs for filtering
+  //     const categoryId = originalProduct.category?.id;
+  //     const brandsIds = originalProduct.brands?.map(brand => brand.id);
+  //     const frameMaterialsIds = originalProduct.frame_materials?.map(material => material.id);
+  //     const frameShapesIds = originalProduct.frame_shapes?.map(shape => shape.id);
+
+  //     // Step 3: Build the dynamic filter
+  //     const filters = {
+  //       $and: [
+  //         { id: { $ne: id } }, // Exclude the original product
+  //         {
+  //           $or: []
+  //         }
+  //       ]
+  //     };
+
+  //     if (categoryId) {
+  //       filters.$and[1].$or.push({ category: { id: { $eq: categoryId } } });
+  //     }
+  //     if (brandsIds && brandsIds.length > 0) {
+  //       filters.$and[1].$or.push({ brands: { id: { $in: brandsIds } } });
+  //     }
+  //     if (frameMaterialsIds && frameMaterialsIds.length > 0) {
+  //       filters.$and[1].$or.push({ frame_materials: { id: { $in: frameMaterialsIds } } });
+  //     }
+  //     if (frameShapesIds && frameShapesIds.length > 0) {
+  //       filters.$and[1].$or.push({ frame_shapes: { id: { $in: frameShapesIds } } });
+  //     }
+
+  //     // If no filters can be applied (e.g., no categories or brands), return an empty array
+  //     if (filters.$and[1].$or.length === 0) {
+  //       return ctx.send({
+  //         success: true,
+  //         message: "No similar products found.",
+  //         data: []
+  //       });
+  //     }
+
+  //     // Step 4: Find similar products based on the dynamic filter
+  //     const similarProducts = await strapi.entityService.findMany(
+  //       "api::product.product", {
+  //       filters: filters,
+  //       populate: [
+  //         "image",
+  //         "category",
+  //         "brands",
+  //         "frame_materials",
+  //         "frame_shapes"
+  //       ],
+  //       limit: 10, // You can adjust the limit for similar products
+  //       locale: locale,
+  //     }
+  //     );
+
+  //     // Step 5: Sanitize and format the response
+  //     const sanitizedProducts = await Promise.all(
+  //       similarProducts.map(async (product) => {
+  //         const sanitized = await strapiUtils.sanitize.contentAPI.output(
+  //           product,
+  //           strapi.contentType("api::product.product")
+  //         );
+
+  //         // Format the brand to a single object with ID and name
+  //         if (sanitized.brands && Array.isArray(sanitized.brands) && sanitized.brands.length > 0) {
+  //           const brand = sanitized.brands[0];
+  //           sanitized.brands = {
+  //             id: brand.id,
+  //             name: brand.name,
+  //           };
+  //         } else {
+  //           sanitized.brands = null;
+  //         }
+  //         return sanitized;
+  //       })
+  //     );
+
+  //     // Step 6: Send the final response
+  //     return ctx.send({
+  //       success: true,
+  //       message: "Similar products retrieved successfully.",
+  //       data: sanitizedProducts,
+  //     });
+
+  //   } catch (error) {
+  //     const customizedError = handleErrors(error);
+  //     ctx.status = handleStatusCode(error) || 500;
+  //     return ctx.send({ success: false, message: customizedError.message });
+  //   }
+  // },
+  // MARK: Find similar products by a product ID
+  async findSimilar(ctx) {
+    try {
+      const { id } = ctx.params;
+      const { locale } = ctx.query;
+
+      // Step 1: Find the original product by its ID
+      const originalProduct = await strapi.entityService.findOne(
+        "api::product.product",
+        id,
+        {
+          populate: ["brands", "category", "frame_materials", "frame_shapes"],
+          locale: locale,
+        }
+      );
+
+      if (!originalProduct) {
+        throw new NotFoundError("Product not found.");
+      }
+
+      // Step 2: Extract relevant IDs for filtering
+      const categoryId = originalProduct.category?.id;
+      const brandsIds = originalProduct.brands?.map((brand) => brand.id);
+      const frameMaterialsIds = originalProduct.frame_materials?.map(
+        (material) => material.id
+      );
+      const frameShapesIds = originalProduct.frame_shapes?.map(
+        (shape) => shape.id
+      );
+
+      // Step 3: Build the dynamic filter
+      const filters = {
+        $and: [
+          { id: { $ne: id } }, // Exclude the original product
+          {
+            $or: [],
+          },
+        ],
+      };
+
+      if (categoryId) {
+        filters.$and[1].$or.push({ category: { id: { $eq: categoryId } } });
+      }
+      if (brandsIds && brandsIds.length > 0) {
+        filters.$and[1].$or.push({ brands: { id: { $in: brandsIds } } });
+      }
+      if (frameMaterialsIds && frameMaterialsIds.length > 0) {
+        filters.$and[1].$or.push({
+          frame_materials: { id: { $in: frameMaterialsIds } },
+        });
+      }
+      if (frameShapesIds && frameShapesIds.length > 0) {
+        filters.$and[1].$or.push({
+          frame_shapes: { id: { $in: frameShapesIds } },
+        });
+      }
+
+      // LOG THE FINAL FILTER TO DEBUG
+      console.log(
+        "Final filter for similar products query:",
+        JSON.stringify(filters, null, 2)
+      );
+
+      // If no filters can be applied (e.g., no categories or brands), return an empty array
+      if (filters.$and[1].$or.length === 0) {
+        return ctx.send({
+          success: true,
+          message: "No similar products found.",
+          data: [],
+        });
+      }
+
+      // Step 4: Find similar products based on the dynamic filter
+      const similarProducts = await strapi.entityService.findMany(
+        "api::product.product",
+        {
+          filters: filters,
+          populate: [
+            "image",
+            "category",
+            "brands",
+            "frame_materials",
+            "frame_shapes",
+          ],
+          limit: 10, // You can adjust the limit for similar products
+          locale: locale,
+        }
+      );
+
+      // Step 5: Sanitize and format the response
+      const sanitizedProducts = await Promise.all(
+        similarProducts.map(async (product) => {
+          const sanitized = await strapiUtils.sanitize.contentAPI.output(
+            product,
+            strapi.contentType("api::product.product")
+          );
+
+          // Format the brand to a single object with ID and name
+          if (
+            sanitized.brands &&
+            Array.isArray(sanitized.brands) &&
+            sanitized.brands.length > 0
+          ) {
+            const brand = sanitized.brands[0];
+            sanitized.brands = {
+              id: brand.id,
+              name: brand.name,
+            };
+          } else {
+            sanitized.brands = null;
+          }
+          return sanitized;
+        })
+      );
+
+      // Step 6: Send the final response
+      return ctx.send({
+        success: true,
+        message: "Similar products retrieved successfully.",
+        data: sanitizedProducts,
+      });
+    } catch (error) {
+      const customizedError = handleErrors(error);
+      ctx.status = handleStatusCode(error) || 500;
+      return ctx.send({ success: false, message: customizedError.message });
+    }
+  },
   // "use strict";
 
   // const { createCoreController } = require("@strapi/strapi").factories;
@@ -2119,133 +2401,129 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
   //     }
   // },
 
-// MARK: Toggle Wishlist + Return Updated Wishlist
-async toggleWishlist(ctx) {
-  try {
-    const { id: userId } = ctx.state.user;
-    const { productId } = ctx.params;
+  // MARK: Toggle Wishlist + Return Updated Wishlist
+  async toggleWishlist(ctx) {
+    try {
+      const { id: userId } = ctx.state.user;
+      const { productId } = ctx.params;
 
-    // 1. Find product with wishlistedByUsers
-    const product = await strapi.entityService.findOne(
-      "api::product.product",
-      productId,
-      { populate: ["wishlistedByUsers"] }
-    );
+      // 1. Find product with wishlistedByUsers
+      const product = await strapi.entityService.findOne(
+        "api::product.product",
+        productId,
+        { populate: ["wishlistedByUsers"] }
+      );
 
-    if (!product) {
-      throw new NotFoundError("Product not found.");
-    }
-
-    const isWishlisted = product.wishlistedByUsers.some(
-      (user) => user.id === userId
-    );
-
-    let updatedWishlistUsers;
-    let message;
-
-    if (isWishlisted) {
-      // Remove from wishlist
-      updatedWishlistUsers = product.wishlistedByUsers
-        .filter((u) => u.id !== userId)
-        .map((u) => u.id);
-      message = "Product removed from wishlist.";
-    } else {
-      // Add to wishlist
-      updatedWishlistUsers = [
-        ...product.wishlistedByUsers.map((u) => u.id),
-        userId,
-      ];
-      message = "Product added to wishlist.";
-    }
-
-    // 2. Update wishlist relation
-    await strapi.entityService.update(
-      "api::product.product",
-      productId,
-      {
-        data: { wishlistedByUsers: updatedWishlistUsers },
+      if (!product) {
+        throw new NotFoundError("Product not found.");
       }
-    );
 
-    // 3. Get updated wishlist products for the current user
-    const wishlistedProducts = await strapi.entityService.findMany(
-      "api::product.product",
-      {
-        filters: { wishlistedByUsers: userId },
-        populate: {
-          image: {
-            fields: ["url", "name", "alternativeText"],
+      const isWishlisted = product.wishlistedByUsers.some(
+        (user) => user.id === userId
+      );
+
+      let updatedWishlistUsers;
+      let message;
+
+      if (isWishlisted) {
+        // Remove from wishlist
+        updatedWishlistUsers = product.wishlistedByUsers
+          .filter((u) => u.id !== userId)
+          .map((u) => u.id);
+        message = "Product removed from wishlist.";
+      } else {
+        // Add to wishlist
+        updatedWishlistUsers = [
+          ...product.wishlistedByUsers.map((u) => u.id),
+          userId,
+        ];
+        message = "Product added to wishlist.";
+      }
+
+      // 2. Update wishlist relation
+      await strapi.entityService.update("api::product.product", productId, {
+        data: { wishlistedByUsers: updatedWishlistUsers },
+      });
+
+      // 3. Get updated wishlist products for the current user
+      const wishlistedProducts = await strapi.entityService.findMany(
+        "api::product.product",
+        {
+          filters: { wishlistedByUsers: userId },
+          populate: {
+            image: {
+              fields: ["url", "name", "alternativeText"],
+            },
+            category: { fields: ["name"] },
+            reviews: {
+              fields: ["rating", "comment", "createdAt"],
+              populate: { user: { fields: ["name"] } },
+            },
           },
-          category: { fields: ["name"] },
-          reviews: {
-            fields: ["rating", "comment", "createdAt"],
-            populate: { user: { fields: ["name"] } },
+          sort: [{ createdAt: "desc" }],
+        }
+      );
+
+      return ctx.send({
+        success: true,
+        message,
+        data: {
+          product_id: productId,
+          isWishlisted: !isWishlisted,
+          wishlist: {
+            products: wishlistedProducts,
+            total_items_in_wishlist: wishlistedProducts.length,
           },
         },
-        sort: [{ createdAt: "desc" }],
-      }
-    );
+      });
+    } catch (error) {
+      const customizedError = handleErrors(error);
+      return ctx.send(
+        { success: false, message: customizedError.message },
+        handleStatusCode(error) || 500
+      );
+    }
+  },
 
-    return ctx.send({
-      success: true,
-      message,
-      data: {
-        product_id: productId,
-        isWishlisted: !isWishlisted,
-        wishlist: {
+  // GET /api/products/my-wishlist
+  async getMyWishlist(ctx) {
+    try {
+      const { id: userId } = ctx.state.user;
+
+      const wishlistedProducts = await strapi.entityService.findMany(
+        "api::product.product",
+        {
+          filters: {
+            wishlistedByUsers: userId, // Only products where current user is in wishlist
+          },
+          populate: {
+            image: { fields: ["url", "name", "alternativeText"] },
+            category: { fields: ["name"] },
+            reviews: {
+              fields: ["rating", "comment", "createdAt"],
+              populate: { user: { fields: ["name"] } }, // FIXED: replaced username
+            },
+          },
+          sort: [{ createdAt: "desc" }],
+        }
+      );
+
+      return ctx.send({
+        success: true,
+        message: "Wishlist retrieved successfully.",
+        data: {
           products: wishlistedProducts,
           total_items_in_wishlist: wishlistedProducts.length,
         },
-      },
-    });
-  } catch (error) {
-    const customizedError = handleErrors(error);
-    return ctx.send(
-      { success: false, message: customizedError.message },
-      handleStatusCode(error) || 500
-    );
-  }
-},
-
-// GET /api/products/my-wishlist
-async getMyWishlist(ctx) {
-  try {
-    const { id: userId } = ctx.state.user;
-
-    const wishlistedProducts = await strapi.entityService.findMany(
-      "api::product.product",
-      {
-        filters: {
-          wishlistedByUsers: userId, // Only products where current user is in wishlist
-        },
-        populate: {
-          image: { fields: ["url", "name", "alternativeText"] },
-          category: { fields: ["name"] },
-          reviews: {
-            fields: ["rating", "comment", "createdAt"],
-            populate: { user: { fields: ["name"] } }, // FIXED: replaced username
-          },
-        },
-        sort: [{ createdAt: "desc" }],
-      }
-    );
-
-    return ctx.send({
-      success: true,
-      message: "Wishlist retrieved successfully.",
-      data: {
-        products: wishlistedProducts,
-        total_items_in_wishlist: wishlistedProducts.length,
-      },
-    });
-  } catch (error) {
-    const customizedError = handleErrors(error);
-    return ctx.send(
-      { success: false, message: customizedError.message },
-      handleStatusCode(error) || 500
-    );
-  }
-},
+      });
+    } catch (error) {
+      const customizedError = handleErrors(error);
+      return ctx.send(
+        { success: false, message: customizedError.message },
+        handleStatusCode(error) || 500
+      );
+    }
+  },
 
   //MARK: Add a review to a product
   // POST /api/products/:productId/review

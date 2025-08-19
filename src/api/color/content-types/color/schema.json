@@ -13,6 +13,12 @@
   "attributes": {
     "name": {
       "type": "string"
+    },
+    "product_variants": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::product-variant.product-variant",
+      "mappedBy": "color"
     }
   }
 }

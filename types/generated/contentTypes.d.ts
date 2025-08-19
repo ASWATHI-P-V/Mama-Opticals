@@ -935,6 +935,11 @@ export interface ApiColorColor extends Schema.CollectionType {
     > &
       Attribute.Private;
     name: Attribute.String;
+    product_variants: Attribute.Relation<
+      'api::color.color',
+      'oneToMany',
+      'api::product-variant.product-variant'
+    >;
     publishedAt: Attribute.DateTime;
     updatedAt: Attribute.DateTime;
     updatedBy: Attribute.Relation<
@@ -1670,6 +1675,11 @@ export interface ApiProductVariantProductVariant extends Schema.CollectionType {
     draftAndPublish: false;
   };
   attributes: {
+    color: Attribute.Relation<
+      'api::product-variant.product-variant',
+      'manyToOne',
+      'api::color.color'
+    >;
     color_picker: Attribute.String &
       Attribute.CustomField<'plugin::color-picker.color'>;
     createdAt: Attribute.DateTime;

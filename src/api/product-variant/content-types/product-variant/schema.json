@@ -55,6 +55,12 @@
       "default": 0,
       "required": false,
       "pluginOptions": {}
+    },
+    "color": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::color.color",
+      "inversedBy": "product_variants"
     }
   }
 }
