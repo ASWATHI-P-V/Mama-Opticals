@@ -6,6 +6,9 @@ const { createCoreController } = require("@strapi/strapi").factories;
 const strapiUtils = require("@strapi/utils");
 const { ValidationError, NotFoundError } = strapiUtils.errors;
 const { sanitize } = require("@strapi/utils");
+const color = require("../../color/controllers/color");
+// IMPORT THE NEW UTILITY FUNCTION FROM THE TOP-LEVEL UTILS FOLDER
+const imageFormatter = require("../../../utils/imageFormatter");
 
 const parseIdsToArray = (input) => {
   if (input === undefined || input === null || input === "") {
@@ -274,11 +277,48 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
         }
       );
 
+      //     // Step 6: Send the final, populated response
+      //     return ctx.send({
+      //       success: true,
+      //       message: "Product created successfully.",
+      //       data: newProduct,
+      //     });
+      //   } catch (error) {
+      //     const customizedError = handleErrors(error);
+      //     ctx.status = handleStatusCode(error) || 500;
+      //     return ctx.send({ success: false, message: customizedError.message });
+      //   }
+      // },
+
+      // --- START: MODIFICATION TO MAKE BRAND A SINGLE OBJECT WITH ONLY ID AND NAME ---
+      const sanitizedProduct = await sanitize.contentAPI.output(
+        newProduct,
+        strapi.contentType("api::product.product")
+      );
+
+      if (
+        sanitizedProduct.brands &&
+        Array.isArray(sanitizedProduct.brands) &&
+        sanitizedProduct.brands.length > 0
+      ) {
+        const brand = sanitizedProduct.brands[0];
+        sanitizedProduct.brands = {
+          id: brand.id,
+          name: brand.name,
+        };
+      } else {
+        sanitizedProduct.brands = null;
+      }
+      // --- END: MODIFICATION ---
+
       // Step 6: Send the final, populated response
       return ctx.send({
         success: true,
         message: "Product created successfully.",
-        data: newProduct,
+        data: {
+          ...sanitizedProduct,
+          image: imageFormatter(sanitizedProduct.image),
+        },
       });
     } catch (error) {
       const customizedError = handleErrors(error);
@@ -311,6 +351,7 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
           populate: {
             color_picker: true,
             frame_size: true,
+            color: true,
           },
         },
       };
@@ -359,6 +400,7 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
       // Extract unique colors and frame sizes from variants
       const color_picker = new Set();
       const frameSizes = new Set();
+      const color = new Set();
 
       if (
         sanitizedProduct.variants &&
@@ -371,6 +413,9 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
           if (variant.frame_size) {
             frameSizes.add(JSON.stringify(variant.frame_size));
           }
+          if (variant.color) {
+            color.add(JSON.stringify(variant.color));
+          }
         });
       }
 
@@ -380,6 +425,7 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
         isWishlisted: isWishlisted,
         color_picker: Array.from(color_picker).map((c) => JSON.parse(c)),
         frame_sizes: Array.from(frameSizes).map((s) => JSON.parse(s)),
+        color: Array.from(color).map((s) => JSON.parse(s)),
         category: sanitizedProduct.category ? [sanitizedProduct.category] : [],
         average_rating: sanitizedProduct.average_rating,
         reviewCount: sanitizedProduct.reviewCount,
@@ -426,6 +472,7 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
           populate: {
             color_picker: true,
             frame_size: true,
+            color: true,
           },
         },
         localizations: true,
@@ -599,48 +646,50 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
       );
       const total = await strapi.entityService.count("api::product.product", {
         filters: filters,
-        locale: locale
+        locale: locale,
       });
 
       // Fetch the authenticated user's wishlist IDs if a user exists
       let wishlistedIds = new Set();
       if (user && user.id) {
         // Find all wishlisted products for the current user and populate their localizations
-        const userWishlistProducts = await strapi.db.query('api::product.product').findMany({
-          where: { wishlistedByUsers: { id: user.id } },
-          select: ['id'],
-          populate: {
-            localizations: {
-              select: ['id'],
+        const userWishlistProducts = await strapi.db
+          .query("api::product.product")
+          .findMany({
+            where: { wishlistedByUsers: { id: user.id } },
+            select: ["id"],
+            populate: {
+              localizations: {
+                select: ["id"],
+              },
             },
-          },
-        });
-        
+          });
+
         if (userWishlistProducts) {
-          userWishlistProducts.forEach(product => {
+          userWishlistProducts.forEach((product) => {
             // Add the main product ID to the set
             wishlistedIds.add(product.id);
-            
+
             // Add all localized product IDs to the set
             if (product.localizations && Array.isArray(product.localizations)) {
-              product.localizations.forEach(localization => {
+              product.localizations.forEach((localization) => {
                 wishlistedIds.add(localization.id);
               });
             }
           });
         }
       }
-      
-      const productsWithOriginalId = products.map(product => {
+
+      const productsWithOriginalId = products.map((product) => {
         const originalProduct = product.localizations?.find(
-          (loc) => loc.locale === 'en'
+          (loc) => loc.locale === "en"
         );
         return {
           ...product,
           originalId: originalProduct ? originalProduct.id : product.id,
         };
       });
-      
+
       const sanitizedProducts = await Promise.all(
         productsWithOriginalId.map(async (product) => {
           const sanitized = await strapiUtils.sanitize.contentAPI.output(
@@ -649,27 +698,35 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
           );
 
           // --- START: MODIFICATION TO MAKE BRAND A SINGLE OBJECT WITH ONLY ID AND NAME ---
-                    if (sanitized.brands && Array.isArray(sanitized.brands) && sanitized.brands.length > 0) {
-                        const brand = sanitized.brands[0];
-                        sanitized.brands = {
-                            id: brand.id,
-                            name: brand.name,
-                        };
-                    } else {
-                        sanitized.brands = null;
-                    }
+          if (
+            sanitized.brands &&
+            Array.isArray(sanitized.brands) &&
+            sanitized.brands.length > 0
+          ) {
+            const brand = sanitized.brands[0];
+            sanitized.brands = {
+              id: brand.id,
+              name: brand.name,
+            };
+          } else {
+            sanitized.brands = null;
+          }
 
           // Extract unique colors and frame sizes from variants
           const color_picker = new Set();
           const frameSizes = new Set();
-          
+          const color = new Set();
+
           if (sanitized.variants && Array.isArray(sanitized.variants)) {
-            sanitized.variants.forEach(variant => {
+            sanitized.variants.forEach((variant) => {
               if (variant.color_picker) {
                 color_picker.add(JSON.stringify(variant.color_picker));
               }
               if (variant.frame_size) {
                 frameSizes.add(JSON.stringify(variant.frame_size));
+              }
+              if (variant.color) {
+                color.add(JSON.stringify(variant.color));
               }
             });
           }
@@ -682,15 +739,16 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
           return {
             ...sanitized,
             isWishlisted: isWishlisted,
-            color_picker: Array.from(color_picker).map(c => JSON.parse(c)),
-            frame_sizes: Array.from(frameSizes).map(s => JSON.parse(s)),
+            color_picker: Array.from(color_picker).map((c) => JSON.parse(c)),
+            frame_sizes: Array.from(frameSizes).map((s) => JSON.parse(s)),
+            color: Array.from(color).map((c) => JSON.parse(c)),
             category: categoryAsList,
             average_rating: sanitized.average_rating,
             reviewCount: sanitized.reviewCount,
           };
         })
       );
-      
+
       return ctx.send({
         success: true,
         message: "Products retrieved successfully.",
@@ -708,327 +766,6 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
       return ctx.send({ success: false, message: customizedError.message });
     }
   },
-
-  //   async findOne(ctx) {
-  //   try {
-  //     const { id } = ctx.params;
-
-  //     const populate = {
-  //       image: true,
-  //       category: true,
-  //       lens_types: true,
-  //       lens_coatings: true,
-  //       frame_weights: true,
-  //       brands: true,
-  //       frame_materials: true,
-  //       frame_shapes: true,
-  //       lens_thicknesses: true,
-  //       reviews: true,
-  //       types: true,
-  //       best_seller: true,
-  //       wishlistedByUsers: true,
-  //       variants: {
-  //         populate: {
-  //           color: true,
-  //           frame_size: true,
-  //         },
-  //       },
-  //     };
-
-  //     const product = await strapi.entityService.findOne(
-  //       "api::product.product",
-  //       id,
-  //       { populate }
-  //     );
-
-  //     if (!product) {
-  //       throw new NotFoundError("Product not found.");
-  //     }
-
-  //     const sanitizedProduct = await strapiUtils.sanitize.contentAPI.output(
-  //       product,
-  //       strapi.contentType("api::product.product")
-  //     );
-
-  //     return ctx.send({
-  //       success: true,
-  //       message: "Product retrieved successfully.",
-  //       data: sanitizedProduct,
-  //     });
-  //   } catch (error) {
-  //     const customizedError = handleErrors(error);
-  //     ctx.status = handleStatusCode(error) || 500;
-  //     return ctx.send({ success: false, message: customizedError.message });
-  //   }
-  // },
-
-  // //MARK: Find all products
-  // async find(ctx) {
-  //   try {
-  //     const { query } = ctx;
-  //     let filters = {};
-  //     let sort = [];
-  //     const populate = {
-  //       image: {
-  //         limit: 1,
-  //       },
-  //       category: true,
-  //       lens_types: true,
-  //       lens_coatings: true,
-  //       frame_weights: true,
-  //       brands: true,
-  //       frame_materials: true,
-  //       frame_shapes: true,
-  //       lens_thicknesses: true,
-  //       reviews: true,
-  //       types: true,
-  //       best_seller: true,
-  //       wishlistedByUsers: true,
-  //       variants: {
-  //         populate: {
-  //           color: true,
-  //           frame_size: true,
-  //         },
-  //       },
-  //       localizations: true,
-  //       // localizations: {
-  //       //   filters: {
-  //       //     locale: "en" ,
-  //       //   }
-  //       // },
-  //     };
-  //      // Extract locale from the query, defaulting to 'en' if not provided
-  //     const locale = query.locale || 'en';
-  //     // Remove locale from the query object to avoid issues with other filters
-  //     delete query.locale;
-
-  //     // --- 1. Search (using '_q' for fuzzy search across specified fields) ---
-  //     if (query._q) {
-  //       filters.$or = [
-  //         { name: { $containsi: query._q } },
-  //         { description: { $containsi: query._q } },
-  //         { variants: { color: { name: { $containsi: query._q } } } },
-  //         { brands: { name: { $containsi: query._q } } },
-  //         { frame_materials: { name: { $containsi: query._q } } },
-  //         { frame_shapes: { name: { $containsi: query._q } } },
-  //         { lens_types: { name: { $containsi: query._q } } },
-  //         { lens_coatings: { name: { $containsi: query._q } } },
-  //         { lens_thicknesses: { name: { $containsi: query._q } } },
-  //         { frame_weights: { name: { $containsi: query._q } } },
-
-  //       ];
-  //       delete query._q;
-  //     }
-
-  //     // --- 2. Filtering ---
-  //     if (query.price_gte) {
-  //       filters.price = { ...filters.price, $gte: parseFloat(query.price_gte) };
-  //       delete query.price_gte;
-  //     }
-  //     if (query.price_lte) {
-  //       filters.price = { ...filters.price, $lte: parseFloat(query.price_lte) };
-  //       delete query.price_lte;
-  //     }
-  //     if (query.offerPrice_gte) {
-  //       filters.offerPrice = {
-  //         ...filters.offerPrice,
-  //         $gte: parseFloat(query.offerPrice_gte),
-  //       };
-  //       delete query.offerPrice_gte;
-  //     }
-  //     if (query.offerPrice_lte) {
-  //       filters.offerPrice = {
-  //         ...filters.offerPrice,
-  //         $lte: parseFloat(query.offerPrice_lte),
-  //       };
-  //       delete query.offerPrice_lte;
-  //     }
-  //     if (query.best_seller !== undefined) {
-  //       filters.best_seller = query.best_seller.toLowerCase() === "true";
-  //       delete query.best_seller;
-  //     }
-  //     if (query.category) {
-  //       filters.category = { name: { $eqi: query.category } };
-  //       delete query.category;
-  //     }
-  //     if (query.brands) {
-  //       filters.brands = { name: { $eqi: query.brands } };
-  //       delete query.brands;
-  //     }
-  //     if (query.frame_materials) {
-  //       filters.frame_materials = { name: { $eqi: query.frame_materials } };
-  //       delete query.frame_materials;
-  //     }
-  //     if (query.frame_shapes) {
-  //       filters.frame_shapes = { name: { $eqi: query.frame_shapes } };
-  //       delete query.frame_shapes;
-  //     }
-  //     if (query.lens_types) {
-  //       filters.lens_types = { name: { $eqi: query.lens_types } };
-  //       delete query.lens_types;
-  //     }
-  //     if (query.lens_coatings) {
-  //       filters.lens_coatings = { name: { $eqi: query.lens_coatings } };
-  //       delete query.lens_coatings;
-  //     }
-  //     if (query.lens_thicknesses) {
-  //       filters.lens_thicknesses = { name: { $eqi: query.lens_thicknesses } };
-  //       delete query.lens_thicknesses;
-  //     }
-  //     if (query.frame_weights) {
-  //       filters.frame_weights = { name: { $eqi: query.frame_weights } };
-  //       delete query.frame_weights;
-  //     }
-  //     if (query.rating_gte) {
-  //       filters.rating = {
-  //         ...filters.rating,
-  //         $gte: parseFloat(query.rating_gte),
-  //       };
-  //       delete query.rating_gte;
-  //     }
-  //     if (query.rating_lte) {
-  //       filters.rating = {
-  //         ...filters.rating,
-  //         $lte: parseFloat(query.rating_lte),
-  //       };
-  //       delete query.rating_lte;
-  //     }
-  //     if (query.inStock !== undefined) {
-  //       // This logic is now on the variant
-  //       // To filter by inStock, you need to filter the product by the variants.inStock attribute
-  //       filters.variants = {
-  //         ...filters.variants,
-  //         inStock: query.inStock.toLowerCase() === "true",
-  //       };
-  //       delete query.inStock;
-  //     }
-  //     if (query.stock_gte) {
-  //       // This logic is now on the variant
-  //       filters.variants = {
-  //         ...filters.variants,
-  //         stock: { $gte: parseInt(query.stock_gte) },
-  //       };
-  //       delete query.stock_gte;
-  //     }
-  //     if (query.stock_lte) {
-  //       // This logic is now on the variant
-  //       filters.variants = {
-  //         ...filters.variants,
-  //         stock: { $lte: parseInt(query.stock_lte) },
-  //       };
-  //       delete query.stock_lte;
-  //     }
-  //     // UPDATED: Filter by color through the variants relation
-  //     if (query.colors) {
-  //       filters.variants = {
-  //         ...filters.variants,
-  //         color: { name: { $eqi: query.colors } },
-  //       };
-  //       delete query.colors;
-  //     }
-  //     // UPDATED: Filter by size through the variants relation
-  //     if (query.frame_sizes) {
-  //       filters.variants = {
-  //         ...filters.variants,
-  //         frame_size: { name: { $eqi: query.frame_sizes } },
-  //       };
-  //       delete query.frame_sizes;
-  //     }
-  //     // --- 3. Sorting ---
-  //     if (query._sort) {
-  //       const sortParams = Array.isArray(query._sort)
-  //         ? query._sort
-  //         : [query._sort];
-  //       sort = sortParams.map((s) => {
-  //         const [field, order] = s.split(":");
-  //         if (field.includes(".")) {
-  //           const [relation, subField] = field.split(".");
-  //           return { [relation]: { [subField]: order.toLowerCase() } };
-  //         }
-  //         return { [field]: order.toLowerCase() };
-  //       });
-  //       delete query._sort;
-  //     } else {
-  //       sort.push({ createdAt: "desc" });
-  //     }
-
-  //     // --- 4. Pagination ---
-  //     const page = parseInt(query.page || 1);
-  //     const pageSize = parseInt(query.pageSize || 10);
-  //     const start = (page - 1) * pageSize;
-  //     const limit = pageSize;
-
-  //     const findOptions = {
-  //       filters: filters,
-  //       sort: sort,
-  //       populate: populate,
-  //       start: start,
-  //       limit: limit,
-  //       locale: locale,
-
-  //     };
-
-  //     const products = await strapi.entityService.findMany(
-  //       "api::product.product",
-  //       findOptions
-  //     );
-  //     const total = await strapi.entityService.count("api::product.product", {
-  //       filters: filters,
-  //       locale: locale
-  //     });
-
-  //     // Map over the products to add the 'originalId'
-  //     const productsWithOriginalId = products.map(product => {
-  //       // If the product has localizations, find the one with the default locale
-  //       // or just use the current product's ID as the base if it's the default.
-  //       const originalProduct = product.localizations?.find(
-  //         (loc) => loc.locale === 'en'
-  //       );
-  //       return {
-  //         ...product,
-  //         originalId: originalProduct ? originalProduct.id : product.id,
-  //       };
-  //     });
-
-  //     const sanitizedProducts = await Promise.all(
-  //       productsWithOriginalId.map((product) =>
-  //         sanitize.contentAPI.output(
-  //           product,
-  //           strapi.contentType("api::product.product")
-  //         )
-  //       )
-  //     );
-
-  //     // const sanitizedProducts = await Promise.all(
-  //     //   products.map((product) =>
-  //     //     strapiUtils.sanitize.contentAPI.output(
-  //     //       product,
-  //     //       strapi.contentType("api::product.product")
-  //     //     )
-  //     //   )
-  //     // );
-
-  //     return ctx.send({
-  //       success: true,
-  //       message: "Products retrieved successfully.",
-  //       data: {
-  //         products: sanitizedProducts,
-  //         meta: {
-  //           pagination: {
-  //             page: page,
-  //             pageSize: limit,
-  //             pageCount: Math.ceil(total / limit),
-  //             total: total,
-  //           },
-  //         },
-  //       },
-  //     });
-  //   } catch (error) {
-  //     const customizedError = handleErrors(error);
-  //     ctx.status = handleStatusCode(error) || 500;
-  //     return ctx.send({ success: false, message: customizedError.message });
-  //   }
-  // },
 
   //MARK: Update product
   async update(ctx) {
@@ -1287,118 +1024,7 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
       return ctx.send({ success: false, message: customizedError.message });
     }
   },
-  // // MARK: Find similar products by a product ID
-  // async findSimilar(ctx) {
-  //   try {
-  //     const { id } = ctx.params;
-  //     const { locale } = ctx.query;
 
-  //     // Step 1: Find the original product by its ID
-  //     const originalProduct = await strapi.entityService.findOne(
-  //       "api::product.product",
-  //       id, {
-  //       populate: [
-  //         "brands",
-  //         "category",
-  //         "frame_materials",
-  //         "frame_shapes",
-  //       ],
-  //       locale: locale,
-  //     });
-
-  //     if (!originalProduct) {
-  //       throw new NotFoundError("Product not found.");
-  //     }
-
-  //     // Step 2: Extract relevant IDs for filtering
-  //     const categoryId = originalProduct.category?.id;
-  //     const brandsIds = originalProduct.brands?.map(brand => brand.id);
-  //     const frameMaterialsIds = originalProduct.frame_materials?.map(material => material.id);
-  //     const frameShapesIds = originalProduct.frame_shapes?.map(shape => shape.id);
-
-  //     // Step 3: Build the dynamic filter
-  //     const filters = {
-  //       $and: [
-  //         { id: { $ne: id } }, // Exclude the original product
-  //         {
-  //           $or: []
-  //         }
-  //       ]
-  //     };
-
-  //     if (categoryId) {
-  //       filters.$and[1].$or.push({ category: { id: { $eq: categoryId } } });
-  //     }
-  //     if (brandsIds && brandsIds.length > 0) {
-  //       filters.$and[1].$or.push({ brands: { id: { $in: brandsIds } } });
-  //     }
-  //     if (frameMaterialsIds && frameMaterialsIds.length > 0) {
-  //       filters.$and[1].$or.push({ frame_materials: { id: { $in: frameMaterialsIds } } });
-  //     }
-  //     if (frameShapesIds && frameShapesIds.length > 0) {
-  //       filters.$and[1].$or.push({ frame_shapes: { id: { $in: frameShapesIds } } });
-  //     }
-
-  //     // If no filters can be applied (e.g., no categories or brands), return an empty array
-  //     if (filters.$and[1].$or.length === 0) {
-  //       return ctx.send({
-  //         success: true,
-  //         message: "No similar products found.",
-  //         data: []
-  //       });
-  //     }
-
-  //     // Step 4: Find similar products based on the dynamic filter
-  //     const similarProducts = await strapi.entityService.findMany(
-  //       "api::product.product", {
-  //       filters: filters,
-  //       populate: [
-  //         "image",
-  //         "category",
-  //         "brands",
-  //         "frame_materials",
-  //         "frame_shapes"
-  //       ],
-  //       limit: 10, // You can adjust the limit for similar products
-  //       locale: locale,
-  //     }
-  //     );
-
-  //     // Step 5: Sanitize and format the response
-  //     const sanitizedProducts = await Promise.all(
-  //       similarProducts.map(async (product) => {
-  //         const sanitized = await strapiUtils.sanitize.contentAPI.output(
-  //           product,
-  //           strapi.contentType("api::product.product")
-  //         );
-
-  //         // Format the brand to a single object with ID and name
-  //         if (sanitized.brands && Array.isArray(sanitized.brands) && sanitized.brands.length > 0) {
-  //           const brand = sanitized.brands[0];
-  //           sanitized.brands = {
-  //             id: brand.id,
-  //             name: brand.name,
-  //           };
-  //         } else {
-  //           sanitized.brands = null;
-  //         }
-  //         return sanitized;
-  //       })
-  //     );
-
-  //     // Step 6: Send the final response
-  //     return ctx.send({
-  //       success: true,
-  //       message: "Similar products retrieved successfully.",
-  //       data: sanitizedProducts,
-  //     });
-
-  //   } catch (error) {
-  //     const customizedError = handleErrors(error);
-  //     ctx.status = handleStatusCode(error) || 500;
-  //     return ctx.send({ success: false, message: customizedError.message });
-  //   }
-  // },
   // MARK: Find similar products by a product ID
   async findSimilar(ctx) {
     try {
@@ -1418,6 +1044,8 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
       if (!originalProduct) {
         throw new NotFoundError("Product not found.");
       }
+
+      console.dir(originalProduct, { depth: null });
 
       // Step 2: Extract relevant IDs for filtering
       const categoryId = originalProduct.category?.id;
@@ -1484,9 +1112,11 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
             "frame_shapes",
           ],
           limit: 10, // You can adjust the limit for similar products
-          locale: locale,
+          // locale: locale,
         }
       );
+
+      console.log(similarProducts, "Similar Products Found");
 
       // Step 5: Sanitize and format the response
       const sanitizedProducts = await Promise.all(
@@ -1526,880 +1156,6 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
       return ctx.send({ success: false, message: customizedError.message });
     }
   },
-  // "use strict";
-
-  // const { createCoreController } = require("@strapi/strapi").factories;
-  // const strapiUtils = require("@strapi/utils");
-  // const { ValidationError, NotFoundError } = strapiUtils.errors;
-
-  // // --- IMPORTANT: Helper Functions ---
-  // // You MUST ensure `ImageFile` is available and correctly implemented.
-  // // It should take a single file object and return the uploaded file object from Strapi.
-  // // A common place for this would be in `src/utils/media-helper.js` or `src/api/product/services/product.js`.
-  // // You would then import it: `const { ImageFile } = require('../../../utils/media-helper');`
-
-  // /*
-  // // Example `ImageFile` (formerly processImageFile) - this needs to be implemented in your project!
-  // // Install 'sharp': npm install sharp
-  // // If you put this in `src/utils/media-helper.js`, make sure to export it: `module.exports = { ImageFile };`
-
-  // const sharp = require('sharp');
-  // const fs = require('fs/promises');
-  // const path = require('path');
-
-  // async function ImageFile(file, width, height) {
-  //     if (!file) return null;
-
-  //     try {
-  //         const buffer = await fs.readFile(file.path);
-  //         let processedBuffer = buffer;
-
-  //         // Resize image if dimensions are provided and image is larger
-  //         if (width || height) {
-  //             const image = sharp(buffer);
-  //             const metadata = await image.metadata();
-
-  //             if (metadata.width > width || metadata.height > height) {
-  //                 processedBuffer = await image
-  //                     .resize(width, height, {
-  //                         fit: sharp.fit.inside,
-  //                         withoutEnlargement: true // Prevent upscaling
-  //                     })
-  //                     .toBuffer();
-  //             }
-  //         }
-
-  //         // Create a temporary file path for Strapi's upload service
-  //         // Ensure strapi.dirs.app.tmp exists and is writable
-  //         const tempFileName = `${path.basename(file.name, path.extname(file.name))}-${Date.now()}${path.extname(file.name)}`;
-  //         const tempPath = path.join(strapi.dirs.app.tmp, tempFileName);
-  //         await fs.writeFile(tempPath, processedBuffer);
-
-  //         // Prepare the file object for Strapi's upload service
-  //         const filesToUpload = {
-  //             name: file.name,
-  //             type: file.type,
-  //             size: processedBuffer.length,
-  //             path: tempPath, // Use the path to the processed temporary file
-  //         };
-
-  //         // Upload the file to Strapi's media library
-  //         const [uploadedFile] = await strapi.plugins.upload.services.upload.upload({
-  //             data: {}, // Any extra data for the upload (e.g., alternativeText, caption)
-  //             files: filesToUpload,
-  //         });
-
-  //         // Clean up the temporary file
-  //         await fs.unlink(tempPath);
-
-  //         return uploadedFile; // Returns the uploaded file object from Strapi
-  //     } catch (err) {
-  //         console.error("Error processing or uploading image:", err);
-  //         throw new Error(`Failed to process image file: ${file.name}. ${err.message}`);
-  //     }
-  // }
-  // */
-
-  // // --- Placeholder for ImageFile if you don't have it yet. Remove this once implemented above.
-  // async function ImageFile(file) {
-  //     console.warn("WARNING: `ImageFile` is a placeholder. Implement proper image processing and Strapi upload logic.");
-  //     const [uploadedFile] = await strapi.plugins.upload.services.upload.upload({
-  //         data: {},
-  //         files: file,
-  //     });
-  //     return uploadedFile;
-  // }
-  // // --- END Placeholder ---
-
-  // const handleErrors = (error) => {
-  //     console.error("Error occurred:", error);
-  //     const errorMessage = String(error.message || '');
-
-  //     if (error.name === "ValidationError") {
-  //         return { message: errorMessage };
-  //     }
-  //     if (error.name === "NotFoundError") {
-  //         return { message: errorMessage };
-  //     }
-  //     if (errorMessage.includes("Missing required field")) {
-  //         return { message: errorMessage };
-  //     }
-  //     // Catch the specific Yup validation error for relations not existing
-  //     if (errorMessage.includes("relation(s) of type plugin::upload.file associated with this entity do not exist")) {
-  //         return { message: "One or more provided image IDs do not exist or are invalid." };
-  //     }
-  //     return { message: "An unexpected error occurred." };
-  // };
-
-  // const handleStatusCode = (error) => {
-  //     const errorMessage = String(error.message || '');
-
-  //     if (error.name === "ValidationError") return 400;
-  //     if (error.name === "NotFoundError") return 404;
-  //     if (errorMessage.includes("Missing required field")) {
-  //         return 400;
-  //     }
-  //     // Catch the specific Yup validation error for relations not existing
-  //     if (errorMessage.includes("relation(s) of type plugin::upload.file associated with this entity do not exist")) {
-  //         return 400;
-  //     }
-  //     return 500;
-  // };
-
-  // const validateBodyRequiredFields = (body, fields) => {
-  //     for (const field of fields) {
-  //         if (
-  //             body[field] === undefined ||
-  //             body[field] === null ||
-  //             body[field] === ""
-  //         ) {
-  //             throw new Error(`Missing required field: ${field}`);
-  //         }
-  //     }
-  // };
-
-  // const parseIdsToArray = (input) => {
-  //     if (input === undefined || input === null || input === '') {
-  //         return null; // Or return an empty array [] if you prefer null for absence.
-  //     }
-
-  //     // If it's already an array, ensure elements are numbers (or strings that can be numbers)
-  //     if (Array.isArray(input)) {
-  //         return input.map(id => {
-  //             const parsedId = parseInt(id, 10);
-  //             if (isNaN(parsedId)) {
-  //                 throw new ValidationError(`Invalid ID type found in array: ${id}`);
-  //             }
-  //             return parsedId;
-  //         }).filter(id => !isNaN(id)); // Filter out any remaining NaN from empty strings
-  //     }
-
-  //     // If it's a string, attempt to parse it
-  //     if (typeof input === 'string') {
-  //         // Handle comma-separated IDs (e.g., "1,2,3")
-  //         const ids = input.split(',').map(s => {
-  //             const trimmedS = s.trim();
-  //             if (trimmedS === '') return NaN; // Handle empty strings from "1,,2"
-  //             const parsedId = parseInt(trimmedS, 10);
-  //             if (isNaN(parsedId)) {
-  //                 throw new ValidationError(`Invalid ID format in string: '${trimmedS}'`);
-  //             }
-  //             return parsedId;
-  //         }).filter(id => !isNaN(id)); // Filter out NaN from failed parses or empty strings
-
-  //         return ids.length > 0 ? ids : null;
-  //     }
-
-  //     // If it's a single number, wrap it in an array
-  //     if (typeof input === 'number') {
-  //         return [input];
-  //     }
-
-  //     // For any other unexpected type
-  //     throw new ValidationError(`Unexpected data type for IDs: ${typeof input}`);
-  // };
-
-  // module.exports = createCoreController("api::product.product", ({ strapi }) => ({
-
-  //     //MARK:Create a new product
-  //     async create(ctx) {
-  //         try {
-  //             const { body, files } = ctx.request;
-  //             const requestData = body.data || body;
-
-  //             // --- Log for debugging: See what requestData looks like initially ---
-  //             console.log('--- CREATE: Raw requestData ---');
-  //             console.log(requestData);
-  //             console.log('Type of requestData.lens_types:', typeof requestData.lens_types);
-  //             console.log('Is requestData.lens_types an Array (raw)?', Array.isArray(requestData.lens_types));
-  //             console.log('Value of requestData.lens_types (raw):', requestData.lens_types);
-  //             console.log('---------------------------------');
-
-  //             // Process array fields
-  //             const processedLensTypes = parseIdsToArray(requestData.lens_types);
-  //             const processedLensCoatings = parseIdsToArray(requestData.lens_coatings);
-  //             const processedFrameWeights = parseIdsToArray(requestData.frame_weights);
-  //             const processedBrands = parseIdsToArray(requestData.brands);
-  //             const processedFrameMaterials = parseIdsToArray(requestData.frame_materials);
-  //             const processedFrameShapes = parseIdsToArray(requestData.frame_shapes);
-  //             const processedLensThicknesses = parseIdsToArray(requestData.lens_thicknesses);
-  //             const processedFrameSizes = parseIdsToArray(requestData.frame_sizes);
-  //             const processedColors = parseIdsToArray(requestData.colors);
-
-  //             const {
-  //                 name,
-  //                 description,
-  //                 price,
-  //                 stock,
-  //                 category,
-  //                 salesCount,
-  //                 offers,
-  //                 offerPrice,
-  //                 rating,
-  //                 reviewCount,
-  //                 best_seller,
-  //                 // Do NOT destructure lens_types etc. here directly from requestData anymore,
-  //                 // as we're using the processed versions.
-  //             } = requestData;
-
-  //             // Validate required fields
-  //             validateBodyRequiredFields(requestData, ["name", "price", "stock"]);
-
-  //             // --- Validation for inStock (String to Boolean conversion) ---
-  //             let processedInStock;
-  //             if (requestData.inStock !== undefined) {
-  //                 processedInStock = String(requestData.inStock).toLowerCase() === 'true';
-  //             } else {
-  //                 processedInStock = stock > 0;
-  //             }
-  //             // --- End inStock Validation ---
-
-  //             // --- Validation for best_seller (String to Boolean conversion) ---
-  //             let processedBestSeller = false;
-  //             if (requestData.best_seller !== undefined) {
-  //                 processedBestSeller = String(requestData.best_seller).toLowerCase() === 'true';
-  //             }
-  //             // --- End best_seller Validation ---
-
-  //             // Basic type/value validation for price and stock
-  //             if (isNaN(price) || price < 0) {
-  //                 throw new ValidationError("Price must be a non-negative number.");
-  //             }
-  //             if (isNaN(stock) || stock < 0) {
-  //                 throw new ValidationError("Stock must be a non-negative integer.");
-  //             }
-
-  //             if (rating !== undefined && (isNaN(rating) || rating < 0 || rating > 5)) {
-  //                 throw new ValidationError("Rating must be a number between 0 and 5.");
-  //             }
-  //             if (reviewCount !== undefined && (isNaN(reviewCount) || reviewCount < 0)) {
-  //                 throw new ValidationError("Review count must be a non-negative integer.");
-  //             }
-  //             if (offerPrice !== undefined && (isNaN(offerPrice) || offerPrice < 0)) {
-  //                 throw new ValidationError("Offer price must be a non-negative number.");
-  //             }
-  //             if (offerPrice !== undefined && offerPrice >= price) {
-  //                 throw new ValidationError("Offer price must be less than the original price.");
-  //             }
-
-  //             // Validate existence of related entities for manyToOne (category)
-  //             if (category) {
-  //                 if (Array.isArray(category)) {
-  //                     throw new ValidationError("Category must be a single ID, not an array.");
-  //                 }
-  //                 const categoryEntity = await strapi.entityService.findOne("api::category.category", category);
-  //                 if (!categoryEntity) {
-  //                     throw new NotFoundError("Provided category not found.");
-  //                 }
-  //             }
-
-  //             // Validate existence of related entities for oneToMany relations (expect arrays of IDs)
-  //             // This function now expects an actual array, thanks to parseIdsToArray
-  //             const validateOneToManyRelationIds = async (target, ids, fieldName) => {
-  //                 if (ids !== null) { // Changed from `ids !== undefined && ids !== null`
-  //                     if (!Array.isArray(ids)) {
-  //                         // This case should ideally not be hit if parseIdsToArray works correctly
-  //                         throw new ValidationError(`${fieldName} must be an array of IDs.`);
-  //                     }
-  //                     for (const id_item of ids) {
-  //                         // Type check simplified, as parseIdsToArray should ensure they are numbers
-  //                         if (typeof id_item !== 'number') {
-  //                              throw new ValidationError(`Invalid ID type in ${fieldName} array after parsing: ${id_item}. Expected number.`);
-  //                         }
-  //                         const entity = await strapi.entityService.findOne(target, id_item);
-  //                         if (!entity) {
-  //                             throw new NotFoundError(`Provided ${fieldName} ID ${id_item} not found.`);
-  //                         }
-  //                     }
-  //                 }
-  //             };
-
-  //             await validateOneToManyRelationIds("api::lens-type.lens-type", processedLensTypes, "lens_types");
-  //             await validateOneToManyRelationIds("api::lens-coating.lens-coating", processedLensCoatings, "lens_coatings");
-  //             await validateOneToManyRelationIds("api::frame-weight.frame-weight", processedFrameWeights, "frame_weights");
-  //             await validateOneToManyRelationIds("api::brand.brand", processedBrands, "brands");
-  //             await validateOneToManyRelationIds("api::frame-material.frame-material", processedFrameMaterials, "frame_materials");
-  //             await validateOneToManyRelationIds("api::frame-shape.frame-shape", processedFrameShapes, "frame_shapes");
-  //             await validateOneToManyRelationIds("api::lens-thickness.lens-thickness", processedLensThicknesses, "lens_thicknesses");
-  //             await validateOneToManyRelationIds("api::frame-size.frame-size", processedFrameSizes, "frame_sizes");
-  //             await validateOneToManyRelationIds("api::color.color", processedColors, "colors");
-
-  //             // Multi-Image Upload Logic for Product Creation
-  //             let uploadedImageIds = [];
-  //             if (files && files.image) {
-  //                 const imageFiles = Array.isArray(files.image) ? files.image : [files.image];
-  //                 if (imageFiles.length > 0) {
-  //                     const processedImages = await Promise.all(
-  //                         imageFiles.map(file => ImageFile(file, 800, 800))
-  //                     );
-  //                     uploadedImageIds = processedImages.map(img => img.id);
-  //                 }
-  //             }
-
-  //             // Create the new product
-  //             const newProduct = await strapi.entityService.create(
-  //                 "api::product.product",
-  //                 {
-  //                     data: {
-  //                         name,
-  //                         description,
-  //                         price,
-  //                         stock: stock,
-  //                         inStock: processedInStock,
-  //                         image: uploadedImageIds,
-  //                         category,
-  //                         lens_types: processedLensTypes, // Use processed arrays
-  //                         lens_coatings: processedLensCoatings,
-  //                         frame_weights: processedFrameWeights,
-  //                         brands: processedBrands,
-  //                         frame_materials: processedFrameMaterials,
-  //                         frame_shapes: processedFrameShapes,
-  //                         lens_thicknesses: processedLensThicknesses,
-  //                         frame_sizes: processedFrameSizes,
-  //                         colors: processedColors,
-  //                         salesCount: salesCount || 0,
-  //                         offers,
-  //                         offerPrice,
-  //                         rating: rating || 0,
-  //                         reviewCount: reviewCount || 0,
-  //                         best_seller: processedBestSeller,
-  //                         publishedAt: new Date(),
-  //                     },
-  //                     populate: [
-  //                         "image",
-  //                         "category",
-  //                         "lens_types",
-  //                         "lens_coatings",
-  //                         "frame_weights",
-  //                         "brands",
-  //                         "colors",
-  //                         "frame_materials",
-  //                         "frame_shapes",
-  //                         "lens_thicknesses",
-  //                         "frame_sizes",
-  //                         "wishlistedByUsers",
-  //                         "reviews",
-  //                         "best_seller",
-  //                     ],
-  //                 }
-  //             );
-
-  //             return ctx.send({
-  //                 success: true,
-  //                 message: "Product created successfully.",
-  //                 data: {
-  //                     product_id: newProduct.id,
-  //                     product_name: newProduct.name,
-  //                     image_ids: uploadedImageIds,
-  //                     best_seller: newProduct.best_seller,
-  //                 },
-  //             });
-  //         } catch (error) {
-  //             const customizedError = handleErrors(error);
-  //             return ctx.send(
-  //                 { success: false, message: customizedError.message },
-  //                 handleStatusCode(error) || 500
-  //             );
-  //         }
-  //     },
-
-  //MARK:find one product by ID
-  // async findOne(ctx) {
-  //     try {
-  //         const { id } = ctx.params; // Product ID from URL parameters
-  //         const product = await strapi.entityService.findOne(
-  //             "api::product.product",
-  //             id,
-  //             {
-  //                 populate: [
-  //                     'image',
-  //                     'category',
-  //                     'lens_types',
-  //                     'lens_coatings',
-  //                     'frame_weights',
-  //                     'brands',
-  //                     'colors',
-  //                     'frame_materials',
-  //                     'frame_shapes',
-  //                     'lens_thicknesses',
-  //                     'frame_sizes',
-  //                     'reviews',
-  //                     'best_seller',
-  //                 ],
-  //             }
-  //         );
-  //         if (!product) {
-  //             throw new NotFoundError("Product not found.");
-  //         }
-  //         const sanitizedProduct = await strapiUtils.sanitize.contentAPI.output(
-  //             product,
-  //             strapi.contentType('api::product.product')
-  //         );
-  //         return ctx.send({
-  //             success: true,
-  //             message: "Product retrieved successfully.",
-  //             data: sanitizedProduct,
-  //         });
-  //       } catch (error) {
-  //         const customizedError = handleErrors(error);
-  //         return ctx.send(
-  //             { success: false, message: customizedError.message },
-  //             handleStatusCode(error) || 500
-  //         );
-  //     }
-  //   },
-
-  // //MARK:Find all products
-  // async find(ctx) {
-  //     // ... (No changes needed here for this specific issue)
-  //     try {
-  //         const { query } = ctx;
-  //         let filters = {};
-  //         let sort = [];
-  //         let populate = [
-  //             'image',
-  //             'category',
-  //             'lens_types',
-  //             'lens_coatings',
-  //             'frame_weights',
-  //             'brands',
-  //             "colors",
-  //             'frame_materials',
-  //             'frame_shapes',
-  //             'lens_thicknesses',
-  //             'frame_sizes',
-  //             'reviews',
-  //             'best_seller', // NEW: Populate best_seller
-  //         ];
-
-  //         // --- 1. Search (using '_q' for fuzzy search across specified fields) ---
-  //         if (query._q) {
-  //             filters.$or = [
-  //                 { name: { $containsi: query._q } },
-  //                 { description: { $containsi: query._q } },
-  //                 { colors: { name: { $containsi: query._q } } },
-  //                 { brands: { name: { $containsi: query._q } } },
-  //                 { frame_materials: { name: { $containsi: query._q } } },
-  //                 { frame_shapes: { name: { $containsi: query._q } } },
-  //                 { lens_types: { name: { $containsi: query._q } } },
-  //                 { lens_coatings: { name: { $containsi: query._q } } },
-  //                 { lens_thicknesses: { name: { $containsi: query._q } } },
-  //                 { frame_weights: { name: { $containsi: query._q } } },
-  //                 { frame_sizes: { name: { $containsi: query._q } } },
-  //             ];
-  //             delete query._q;
-  //         }
-
-  //         // --- 2. Filtering ---
-
-  //         // Price Range
-  //         if (query.price_gte) {
-  //             filters.price = { ...filters.price, $gte: parseFloat(query.price_gte) };
-  //             delete query.price_gte;
-  //         }
-  //         if (query.price_lte) {
-  //             filters.price = { ...filters.price, $lte: parseFloat(query.price_lte) };
-  //             delete query.price_lte;
-  //         }
-
-  //         // Offer Price Range
-  //         if (query.offerPrice_gte) {
-  //             filters.offerPrice = { ...filters.offerPrice, $gte: parseFloat(query.offerPrice_gte) };
-  //             delete query.offerPrice_gte;
-  //         }
-  //         if (query.offerPrice_lte) {
-  //             filters.offerPrice = { ...filters.offerPrice, $lte: parseFloat(query.offerPrice_lte) };
-  //             delete query.offerPrice_lte;
-  //         }
-
-  //         // Availability (inStock - Boolean field)
-  //         if (query.inStock !== undefined) {
-  //             filters.inStock = query.inStock.toLowerCase() === 'true'; // Convert string to boolean for filtering
-  //             delete query.inStock;
-  //         }
-
-  //         // NEW: Best Seller Filter
-  //         if (query.best_seller !== undefined) {
-  //             filters.best_seller = query.best_seller.toLowerCase() === 'true'; // Convert string to boolean for filtering
-  //             delete query.best_seller;
-  //         }
-
-  //         // Stock Range
-  //         if (query.stock_gte) {
-  //             filters.stock = { ...filters.stock, $gte: parseInt(query.stock_gte) };
-  //             delete query.stock_gte;
-  //         }
-  //         if (query.stock_lte) {
-  //             filters.stock = { ...filters.stock, $lte: parseInt(query.stock_lte) };
-  //             delete query.stock_lte;
-  //         }
-
-  //         // Category (by name)
-  //         if (query.category) {
-  //             filters.category = { name: { $eqi: query.category } };
-  //             delete query.category;
-  //         }
-
-  //         // Color (assuming relation to 'Color' CT)
-  //         if (query.colors) {
-  //             filters.colors = { name: { $eqi: query.colors } };
-  //             delete query.colors;
-  //         }
-
-  //         // Filter by related content type's name
-  //         if (query.brands) {
-  //             filters.brands = { name: { $eqi: query.brands } };
-  //             delete query.brands;
-  //         }
-  //         if (query.frame_materials) {
-  //             filters.frame_materials = { name: { $eqi: query.frame_materials } };
-  //             delete query.frame_materials;
-  //         }
-  //         if (query.frame_shapes) {
-  //             filters.frame_shapes = { name: { $eqi: query.frame_shapes } };
-  //             delete query.frame_shapes;
-  //         }
-  //         if (query.lens_types) {
-  //             filters.lens_types = { name: { $eqi: query.lens_types } };
-  //             delete query.lens_types;
-  //         }
-  //         if (query.lens_coatings) {
-  //             filters.lens_coatings = { name: { $eqi: query.lens_coatings } };
-  //             delete query.lens_coatings;
-  //         }
-  //         if (query.lens_thicknesses) {
-  //             filters.lens_thicknesses = { name: { $eqi: query.lens_thicknesses } };
-  //             delete query.lens_thicknesses;
-  //         }
-  //         if (query.frame_weights) {
-  //             filters.frame_weights = { name: { $eqi: query.frame_weights } };
-  //             delete query.frame_weights;
-  //         }
-  //         if (query.frame_sizes) {
-  //             filters.frame_sizes = { name: { $eqi: query.frame_sizes } };
-  //             delete query.frame_sizes;
-  //         }
-
-  //         // Rating (gte)
-  //         if (query.rating_gte) {
-  //             filters.rating = { ...filters.rating, $gte: parseFloat(query.rating_gte) };
-  //             delete query.rating_gte;
-  //         }
-  //         if (query.rating_lte) {
-  //             filters.rating = { ...filters.rating, $lte: parseFloat(query.rating_lte) };
-  //             delete query.rating_lte;
-  //         }
-
-  //         // --- 3. Sorting ---
-  //         if (query._sort) {
-  //             const sortParams = Array.isArray(query._sort) ? query._sort : [query._sort];
-  //             sort = sortParams.map(s => {
-  //                 const [field, order] = s.split(':');
-  //                 if (field.includes('.')) {
-  //                     const [relation, subField] = field.split('.');
-  //                     return { [relation]: { [subField]: order.toLowerCase() } };
-  //                 }
-  //                 return { [field]: order.toLowerCase() };
-  //             });
-  //             delete query._sort;
-  //         } else {
-  //             sort.push({ createdAt: 'desc' });
-  //         }
-
-  //         // --- 4. Pagination ---
-  //         const page = parseInt(query.page || 1);
-  //         const pageSize = parseInt(query.pageSize || 10);
-  //         const start = (page - 1) * pageSize;
-  //         const limit = pageSize;
-
-  //         const findOptions = {
-  //             filters: filters,
-  //             sort: sort,
-  //             populate: populate,
-  //             start: start,
-  //             limit: limit,
-  //         };
-
-  //         const products = await strapi.entityService.findMany("api::product.product", findOptions);
-  //         const total = await strapi.entityService.count("api::product.product", { filters: filters });
-
-  //         const sanitizedProducts = await Promise.all(
-  //             products.map((product) =>
-  //                 strapiUtils.sanitize.contentAPI.output(product, strapi.contentType('api::product.product'))
-  //             )
-  //         );
-
-  //         return ctx.send({
-  //             success: true,
-  //             message: "Products retrieved successfully.",
-  //             data: {
-  //                 products: sanitizedProducts,
-  //                 meta: {
-  //                     pagination: {
-  //                         page: page,
-  //                         pageSize: limit,
-  //                         pageCount: Math.ceil(total / limit),
-  //                         total: total,
-  //                     },
-  //                 },
-  //             },
-  //         });
-
-  //     } catch (error) {
-  //         const customizedError = handleErrors(error);
-  //         return ctx.send(
-  //             { success: false, message: customizedError.message },
-  //             handleStatusCode(error) || 500
-  //         );
-  //     }
-  // },
-
-  // /**
-  //  * Allows updating product details and its relations (expects arrays of IDs for oneToMany).
-  //  * PUT /api/products/:id
-  //  */
-  // //MARK: Update product
-  // async update(ctx) {
-  //     try {
-  //         const { id } = ctx.params;
-  //         const { body, files } = ctx.request;
-  //         const requestData = body.data || body;
-
-  //         // --- Log for debugging: See what requestData looks like initially ---
-  //         console.log('--- UPDATE: Raw requestData ---');
-  //         console.log(requestData);
-  //         console.log('Type of requestData.lens_types:', typeof requestData.lens_types);
-  //         console.log('Is requestData.lens_types an Array (raw)?', Array.isArray(requestData.lens_types));
-  //         console.log('Value of requestData.lens_types (raw):', requestData.lens_types);
-  //         console.log('---------------------------------');
-
-  //         const existingProduct = await strapi.entityService.findOne(
-  //             "api::product.product",
-  //             id,
-  //             { populate: ['image'] }
-  //         );
-
-  //         if (!existingProduct) {
-  //             throw new NotFoundError("Product not found.");
-  //         }
-
-  //         // Process array fields for update
-  //         const processedLensTypes = requestData.lens_types !== undefined ? parseIdsToArray(requestData.lens_types) : existingProduct.lens_types.map(lt => lt.id);
-  //         const processedLensCoatings = requestData.lens_coatings !== undefined ? parseIdsToArray(requestData.lens_coatings) : existingProduct.lens_coatings.map(lc => lc.id);
-  //         const processedFrameWeights = requestData.frame_weights !== undefined ? parseIdsToArray(requestData.frame_weights) : existingProduct.frame_weights.map(fw => fw.id);
-  //         const processedBrands = requestData.brands !== undefined ? parseIdsToArray(requestData.brands) : existingProduct.brands.map(b => b.id);
-  //         const processedFrameMaterials = requestData.frame_materials !== undefined ? parseIdsToArray(requestData.frame_materials) : existingProduct.frame_materials.map(fm => fm.id);
-  //         const processedFrameShapes = requestData.frame_shapes !== undefined ? parseIdsToArray(requestData.frame_shapes) : existingProduct.frame_shapes.map(fs => fs.id);
-  //         const processedLensThicknesses = requestData.lens_thicknesses !== undefined ? parseIdsToArray(requestData.lens_thicknesses) : existingProduct.lens_thicknesses.map(lt => lt.id);
-  //         const processedFrameSizes = requestData.frame_sizes !== undefined ? parseIdsToArray(requestData.frame_sizes) : existingProduct.frame_sizes.map(fs => fs.id);
-  //         const processedColors = requestData.colors !== undefined ? parseIdsToArray(requestData.colors) : existingProduct.colors.map(c => c.id);
-
-  //         // --- Validation for inStock (String to Boolean conversion) ---
-  //         let processedInStock;
-  //         if (requestData.inStock !== undefined) {
-  //             processedInStock = String(requestData.inStock).toLowerCase() === 'true';
-  //         } else {
-  //             processedInStock = existingProduct.inStock;
-  //         }
-
-  //         if (requestData.stock !== undefined) {
-  //             if (isNaN(requestData.stock) || requestData.stock < 0) {
-  //                 throw new ValidationError("Stock must be a non-negative integer.");
-  //             }
-  //             processedInStock = requestData.stock > 0;
-  //         }
-  //         // --- End inStock Validation ---
-
-  //         // --- Validation for best_seller (String to Boolean conversion) ---
-  //         let processedBestSeller = existingProduct.best_seller;
-  //         if (requestData.best_seller !== undefined) {
-  //             processedBestSeller = String(requestData.best_seller).toLowerCase() === 'true';
-  //         }
-  //         // --- End best_seller Validation ---
-
-  //         // Validate rating if provided
-  //         if (requestData.rating !== undefined && (isNaN(requestData.rating) || requestData.rating < 0 || requestData.rating > 5)) {
-  //             throw new ValidationError("Rating must be a number between 0 and 5.");
-  //         }
-  //         // Validate reviewCount if provided
-  //         if (requestData.reviewCount !== undefined && (isNaN(requestData.reviewCount) || requestData.reviewCount < 0)) {
-  //             throw new ValidationError("Review count must be a non-negative integer.");
-  //         }
-  //         // Validate offerPrice if provided
-  //         if (requestData.offerPrice !== undefined) {
-  //             if (isNaN(requestData.offerPrice) || requestData.offerPrice < 0) {
-  //                 throw new ValidationError("Offer price must be a non-negative number.");
-  //             }
-  //             const currentPrice = requestData.price !== undefined ? requestData.price : existingProduct.price;
-  //             if (requestData.offerPrice >= currentPrice) {
-  //                 throw new ValidationError("Offer price must be less than the original price.");
-  //             }
-  //         }
-
-  //         // Validate existence of related entities for manyToOne (category)
-  //         if (requestData.category !== undefined) {
-  //             if (Array.isArray(requestData.category)) {
-  //                 throw new ValidationError("Category must be a single ID, not an array.");
-  //             }
-  //             const categoryEntity = await strapi.entityService.findOne("api::category.category", requestData.category);
-  //             if (!categoryEntity) {
-  //                 throw new NotFoundError("Provided category not found.");
-  //             }
-  //         }
-
-  //         // The validateOneToManyRelationIds function remains the same,
-  //         // as it now receives already-processed arrays.
-  //         const validateOneToManyRelationIds = async (target, ids, fieldName) => {
-  //             if (ids !== null) { // Changed from `ids !== undefined && ids !== null`
-  //                 if (!Array.isArray(ids)) {
-  //                     throw new ValidationError(`${fieldName} must be an array of IDs.`);
-  //                 }
-  //                 for (const id_item of ids) {
-  //                     if (typeof id_item !== 'number') { // Already parsed by parseIdsToArray
-  //                         throw new ValidationError(`Invalid ID type in ${fieldName} array after parsing: ${id_item}. Expected number.`);
-  //                     }
-  //                     const entity = await strapi.entityService.findOne(target, id_item);
-  //                     if (!entity) {
-  //                         throw new NotFoundError(`Provided ${fieldName} ID ${id_item} not found.`);
-  //                     }
-  //                 }
-  //             }
-  //         };
-
-  //         if (processedLensTypes !== null) await validateOneToManyRelationIds("api::lens-type.lens-type", processedLensTypes, "lens_types");
-  //         if (processedLensCoatings !== null) await validateOneToManyRelationIds("api::lens-coating.lens-coating", processedLensCoatings, "lens_coatings");
-  //         if (processedFrameWeights !== null) await validateOneToManyRelationIds("api::frame-weight.frame-weight", processedFrameWeights, "frame_weights");
-  //         if (processedBrands !== null) await validateOneToManyRelationIds("api::brand.brand", processedBrands, "brands");
-  //         if (processedFrameMaterials !== null) await validateOneToManyRelationIds("api::frame-material.frame-material", processedFrameMaterials, "frame_materials");
-  //         if (processedFrameShapes !== null) await validateOneToManyRelationIds("api::frame-shape.frame-shape", processedFrameShapes, "frame_shapes");
-  //         if (processedLensThicknesses !== null) await validateOneToManyRelationIds("api::lens-thickness.lens-thickness", processedLensThicknesses, "lens_thicknesses");
-  //         if (processedFrameSizes !== null) await validateOneToManyRelationIds("api::frame-size.frame-size", processedFrameSizes, "frame_sizes");
-  //         if (processedColors !== null) await validateOneToManyRelationIds("api::color.color", processedColors, "colors");
-
-  //         // Multi-Image Update Logic for Product Update
-  //         let finalImageIds = [];
-
-  //         if (files && files.image) {
-  //             const newImageFiles = Array.isArray(files.image) ? files.image : [files.image];
-  //             if (newImageFiles.length > 0) {
-  //                 const uploadedNewImages = await Promise.all(
-  //                     newImageFiles.map(file => ImageFile(file, 800, 800))
-  //                 );
-  //                 finalImageIds = uploadedNewImages.map(img => img.id);
-  //             }
-  //         } else if (requestData.image !== undefined) {
-  //             // If no new files, but image IDs were explicitly sent in requestData.image
-  //             // This means existing images might be kept or removed based on the array sent
-  //             const parsedImageIds = parseIdsToArray(requestData.image);
-  //             if (parsedImageIds !== null) {
-  //                 for (const imgId of parsedImageIds) {
-  //                      const imageEntity = await strapi.entityService.findOne("plugin::upload.file", imgId);
-  //                      if (!imageEntity) {
-  //                          throw new NotFoundError(`Provided image ID ${imgId} not found for image update.`);
-  //                      }
-  //                 }
-  //                 finalImageIds = parsedImageIds;
-  //             } else {
-  //                 finalImageIds = []; // Explicitly empty the image array if null/empty string is sent
-  //             }
-  //         } else {
-  //             // If no new files and no explicit image IDs in requestData, retain existing images
-  //             finalImageIds = existingProduct.image ? existingProduct.image.map(img => img.id) : [];
-  //         }
-
-  //         const updateData = { ...requestData };
-  //         updateData.image = finalImageIds;
-  //         updateData.inStock = processedInStock;
-  //         updateData.best_seller = processedBestSeller;
-
-  //         // Override the array fields with our processed versions
-  //         updateData.lens_types = processedLensTypes;
-  //         updateData.lens_coatings = processedLensCoatings;
-  //         updateData.frame_weights = processedFrameWeights;
-  //         updateData.brands = processedBrands;
-  //         updateData.frame_materials = processedFrameMaterials;
-  //         updateData.frame_shapes = processedFrameShapes;
-  //         updateData.lens_thicknesses = processedLensThicknesses;
-  //         updateData.frame_sizes = processedFrameSizes;
-  //         updateData.colors = processedColors;
-
-  //         // Update the product
-  //         const updatedProduct = await strapi.entityService.update(
-  //             "api::product.product",
-  //             id,
-  //             {
-  //                 data: updateData,
-  //                 populate: [
-  //                     "image",
-  //                     "category",
-  //                     "lens_types",
-  //                     "lens_coatings",
-  //                     "frame_weights",
-  //                     "brands",
-  //                     "colors",
-  //                     "frame_materials",
-  //                     "frame_shapes",
-  //                     "lens_thicknesses",
-  //                     "frame_sizes",
-  //                     "wishlistedByUsers",
-  //                     "reviews",
-  //                     "best_seller",
-  //                 ],
-  //             }
-  //         );
-
-  //         const sanitizedProduct = await strapiUtils.sanitize.contentAPI.output(updatedProduct, strapi.contentType('api::product.product'));
-
-  //         return ctx.send({
-  //             success: true,
-  //             message: "Product updated successfully.",
-  //             data: sanitizedProduct,
-  //         });
-  //     } catch (error) {
-  //         const customizedError = handleErrors(error);
-  //         return ctx.send(
-  //             { success: false, message: customizedError.message },
-  //             handleStatusCode(error) || 500
-  //         );
-  //     }
-  // },
-
-  // //MARK: Delete product
-  // async delete(ctx) {
-  //     // ... (No changes needed here for this specific issue)
-  //     try {
-  //         const { id } = ctx.params;
-
-  //         const existingProduct = await strapi.entityService.findOne(
-  //             "api::product.product",
-  //             id
-  //         );
-
-  //         if (!existingProduct) {
-  //             throw new NotFoundError("Product not found.");
-  //         }
-
-  //         const deletedProduct = await strapi.entityService.delete(
-  //             "api::product.product",
-  //             id
-  //         );
-
-  //         return ctx.send({
-  //             success: true,
-  //             message: "Product deleted successfully.",
-  //             data: {
-  //                 id: deletedProduct.id,
-  //                 name: deletedProduct.name,
-  //             },
-  //         });
-  //     } catch (error) {
-  //         const customizedError = handleErrors(error);
-  //         return ctx.send(
-  //             { success: false, message: customizedError.message },
-  //             handleStatusCode(error) || 500
-  //         );
-  //     }
-  // },
 
   // MARK: Toggle Wishlist + Return Updated Wishlist
   async toggleWishlist(ctx) {
