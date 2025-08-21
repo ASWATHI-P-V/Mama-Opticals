@@ -7,8 +7,6 @@ const strapiUtils = require("@strapi/utils");
 const { ValidationError, NotFoundError } = strapiUtils.errors;
 const { sanitize } = require("@strapi/utils");
 const color = require("../../color/controllers/color");
-// IMPORT THE NEW UTILITY FUNCTION FROM THE TOP-LEVEL UTILS FOLDER
-const imageFormatter = require("../../../utils/imageFormatter");
 
 const parseIdsToArray = (input) => {
   if (input === undefined || input === null || input === "") {
@@ -277,48 +275,11 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
         }
       );
 
-      //     // Step 6: Send the final, populated response
-      //     return ctx.send({
-      //       success: true,
-      //       message: "Product created successfully.",
-      //       data: newProduct,
-      //     });
-      //   } catch (error) {
-      //     const customizedError = handleErrors(error);
-      //     ctx.status = handleStatusCode(error) || 500;
-      //     return ctx.send({ success: false, message: customizedError.message });
-      //   }
-      // },
-
-      // --- START: MODIFICATION TO MAKE BRAND A SINGLE OBJECT WITH ONLY ID AND NAME ---
-      const sanitizedProduct = await sanitize.contentAPI.output(
-        newProduct,
-        strapi.contentType("api::product.product")
-      );
-
-      if (
-        sanitizedProduct.brands &&
-        Array.isArray(sanitizedProduct.brands) &&
-        sanitizedProduct.brands.length > 0
-      ) {
-        const brand = sanitizedProduct.brands[0];
-        sanitizedProduct.brands = {
-          id: brand.id,
-          name: brand.name,
-        };
-      } else {
-        sanitizedProduct.brands = null;
-      }
-      // --- END: MODIFICATION ---
-
       // Step 6: Send the final, populated response
       return ctx.send({
         success: true,
         message: "Product created successfully.",
-        data: {
-          ...sanitizedProduct,
-          image: imageFormatter(sanitizedProduct.image),
-        },
+        data: newProduct,
       });
     } catch (error) {
       const customizedError = handleErrors(error);
@@ -1028,134 +989,231 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
   // MARK: Find similar products by a product ID
   async findSimilar(ctx) {
     try {
-      const { id } = ctx.params;
-      const { locale } = ctx.query;
+        const { id } = ctx.params;
+        const { locale } = ctx.query;
+        const user = ctx.state.user;
 
-      // Step 1: Find the original product by its ID
-      const originalProduct = await strapi.entityService.findOne(
-        "api::product.product",
-        id,
-        {
-          populate: ["brands", "category", "frame_materials", "frame_shapes"],
-          locale: locale,
+        // Step 1: Find the original product by its ID
+        const originalProduct = await strapi.entityService.findOne(
+            "api::product.product",
+            id, {
+                populate: [
+                    "brands",
+                    "category",
+                    "frame_materials",
+                    "frame_shapes",
+                ],
+                // locale: locale,
+            });
+
+        // LOG THE FOUND PRODUCT TO DEBUG
+        console.log('Original Product found:', JSON.stringify(originalProduct, null, 2));
+
+        if (!originalProduct) {
+            throw new NotFoundError("Product not found.");
         }
-      );
 
-      if (!originalProduct) {
-        throw new NotFoundError("Product not found.");
-      }
+        // Step 2: Extract relevant IDs for filtering
+        const categoryId = originalProduct.category?.id;
+        const brandsIds = originalProduct.brands?.map(brand => brand.id);
+        const frameMaterialsIds = originalProduct.frame_materials?.map(material => material.id);
+        const frameShapesIds = originalProduct.frame_shapes?.map(shape => shape.id);
 
-      console.dir(originalProduct, { depth: null });
+        // Step 3: Build the dynamic filter
+        const filters = {
+            $and: [{
+                id: {
+                    $ne: id
+                }
+            }, // Exclude the original product
+            {
+                $or: []
+            }
+            ]
+        };
 
-      // Step 2: Extract relevant IDs for filtering
-      const categoryId = originalProduct.category?.id;
-      const brandsIds = originalProduct.brands?.map((brand) => brand.id);
-      const frameMaterialsIds = originalProduct.frame_materials?.map(
-        (material) => material.id
-      );
-      const frameShapesIds = originalProduct.frame_shapes?.map(
-        (shape) => shape.id
-      );
+        if (categoryId) {
+            filters.$and[1].$or.push({
+                category: {
+                    id: {
+                        $eq: categoryId
+                    }
+                }
+            });
+        }
+        if (brandsIds && brandsIds.length > 0) {
+            filters.$and[1].$or.push({
+                brands: {
+                    id: {
+                        $in: brandsIds
+                    }
+                }
+            });
+        }
+        if (frameMaterialsIds && frameMaterialsIds.length > 0) {
+            filters.$and[1].$or.push({
+                frame_materials: {
+                    id: {
+                        $in: frameMaterialsIds
+                    }
+                }
+            });
+        }
+        if (frameShapesIds && frameShapesIds.length > 0) {
+            filters.$and[1].$or.push({
+                frame_shapes: {
+                    id: {
+                        $in: frameShapesIds
+                    }
+                }
+            });
+        }
 
-      // Step 3: Build the dynamic filter
-      const filters = {
-        $and: [
-          { id: { $ne: id } }, // Exclude the original product
-          {
-            $or: [],
-          },
-        ],
-      };
+        // LOG THE FINAL FILTER TO DEBUG
+        console.log('Final filter for similar products query:', JSON.stringify(filters, null, 2));
 
-      if (categoryId) {
-        filters.$and[1].$or.push({ category: { id: { $eq: categoryId } } });
-      }
-      if (brandsIds && brandsIds.length > 0) {
-        filters.$and[1].$or.push({ brands: { id: { $in: brandsIds } } });
-      }
-      if (frameMaterialsIds && frameMaterialsIds.length > 0) {
-        filters.$and[1].$or.push({
-          frame_materials: { id: { $in: frameMaterialsIds } },
-        });
-      }
-      if (frameShapesIds && frameShapesIds.length > 0) {
-        filters.$and[1].$or.push({
-          frame_shapes: { id: { $in: frameShapesIds } },
-        });
-      }
+        // If no filters can be applied, return an empty array
+        if (filters.$and[1].$or.length === 0) {
+            return ctx.send({
+                success: true,
+                message: "No similar products found.",
+                data: []
+            });
+        }
 
-      // LOG THE FINAL FILTER TO DEBUG
-      console.log(
-        "Final filter for similar products query:",
-        JSON.stringify(filters, null, 2)
-      );
+        // --- WISH LIST: Fetch the authenticated user's wishlist IDs including localizations ---
+        let wishlistedIds = new Set();
+        if (user && user.id) {
+            const userWishlistProducts = await strapi.db
+                .query("api::product.product")
+                .findMany({
+                    where: {
+                        wishlistedByUsers: {
+                            id: user.id
+                        }
+                    },
+                    select: ["id"],
+                    populate: {
+                        localizations: {
+                            select: ["id"],
+                        },
+                    },
+                });
 
-      // If no filters can be applied (e.g., no categories or brands), return an empty array
-      if (filters.$and[1].$or.length === 0) {
+            if (userWishlistProducts) {
+                userWishlistProducts.forEach((product) => {
+                    // Add the main product ID to the set
+                    wishlistedIds.add(product.id);
+
+                    // Add all localized product IDs to the set
+                    if (product.localizations && Array.isArray(product.localizations)) {
+                        product.localizations.forEach((localization) => {
+                            wishlistedIds.add(localization.id);
+                        });
+                    }
+                });
+            }
+        }
+
+        // Step 4: Find similar products based on the dynamic filter
+        const similarProducts = await strapi.entityService.findMany(
+            "api::product.product", {
+                filters: filters,
+                populate: [
+                    "image",
+                    "category",
+                    "brands",
+                    "frame_materials",
+                    "frame_shapes",
+                    "variants",
+                    "variants.color_picker",
+                    "variants.frame_size",
+                    "localizations"
+                ],
+                limit: 10, // You can adjust the limit for similar products
+                // locale: locale,
+            }
+        );
+
+        console.log(similarProducts, "Similar Products Found");
+
+        // Step 5: Sanitize and format the response
+        const sanitizedProducts = await Promise.all(
+            similarProducts.map(async (product) => {
+                const sanitized = await strapiUtils.sanitize.contentAPI.output(
+                    product,
+                    strapi.contentType("api::product.product")
+                );
+
+                // Format the brand to a single object with ID and name
+                if (sanitized.brands && Array.isArray(sanitized.brands) && sanitized.brands.length > 0) {
+                    const brand = sanitized.brands[0];
+                    sanitized.brands = {
+                        id: brand.id,
+                        name: brand.name,
+                    };
+                } else {
+                    sanitized.brands = null;
+                }
+
+                // --- COLOR PICKER & FRAME SIZES: Extract unique colors and frame sizes from variants ---
+                const color_picker = new Set();
+                const frameSizes = new Set();
+                const color = new Set();
+
+
+                if (sanitized.variants && Array.isArray(sanitized.variants)) {
+                    sanitized.variants.forEach(variant => {
+                        if (variant.color_picker) {
+                            color_picker.add(JSON.stringify(variant.color_picker));
+                        }
+                        if (variant.frame_size) {
+                            frameSizes.add(JSON.stringify(variant.frame_size));
+                        }
+                        if (variant.color) {
+                            color.add(JSON.stringify(variant.color));
+                        }
+                    });
+                }
+                
+                const originalProductId = product.localizations?.find(
+                    (loc) => loc.locale === "en"
+                )?.id;
+
+                // Apply the transformations directly
+                const isWishlisted = wishlistedIds.has(originalProductId || sanitized.id);
+                const categoryAsList = sanitized.category ? [sanitized.category] : [];
+
+                // Return the new object with the extracted lists
+                return {
+                    ...sanitized,
+                    isWishlisted: isWishlisted,
+                    color_picker: Array.from(color_picker).map(c => JSON.parse(c)),
+                    frame_sizes: Array.from(frameSizes).map(s => JSON.parse(s)),
+                    color: Array.from(color).map(c => JSON.parse(c)),
+                    category: categoryAsList,
+                    average_rating: sanitized.average_rating,
+                    reviewCount: sanitized.reviewCount,
+                };
+            })
+        );
+
+        // Step 6: Send the final response
         return ctx.send({
-          success: true,
-          message: "No similar products found.",
-          data: [],
+            success: true,
+            message: "Similar products retrieved successfully.",
+            data: sanitizedProducts,
         });
-      }
 
-      // Step 4: Find similar products based on the dynamic filter
-      const similarProducts = await strapi.entityService.findMany(
-        "api::product.product",
-        {
-          filters: filters,
-          populate: [
-            "image",
-            "category",
-            "brands",
-            "frame_materials",
-            "frame_shapes",
-          ],
-          limit: 10, // You can adjust the limit for similar products
-          // locale: locale,
-        }
-      );
-
-      console.log(similarProducts, "Similar Products Found");
-
-      // Step 5: Sanitize and format the response
-      const sanitizedProducts = await Promise.all(
-        similarProducts.map(async (product) => {
-          const sanitized = await strapiUtils.sanitize.contentAPI.output(
-            product,
-            strapi.contentType("api::product.product")
-          );
-
-          // Format the brand to a single object with ID and name
-          if (
-            sanitized.brands &&
-            Array.isArray(sanitized.brands) &&
-            sanitized.brands.length > 0
-          ) {
-            const brand = sanitized.brands[0];
-            sanitized.brands = {
-              id: brand.id,
-              name: brand.name,
-            };
-          } else {
-            sanitized.brands = null;
-          }
-          return sanitized;
-        })
-      );
-
-      // Step 6: Send the final response
-      return ctx.send({
-        success: true,
-        message: "Similar products retrieved successfully.",
-        data: sanitizedProducts,
-      });
     } catch (error) {
-      const customizedError = handleErrors(error);
-      ctx.status = handleStatusCode(error) || 500;
-      return ctx.send({ success: false, message: customizedError.message });
+        const customizedError = handleErrors(error);
+        ctx.status = handleStatusCode(error) || 500;
+        return ctx.send({
+            success: false,
+            message: customizedError.message
+        });
     }
-  },
+},
 
   // MARK: Toggle Wishlist + Return Updated Wishlist
   async toggleWishlist(ctx) {

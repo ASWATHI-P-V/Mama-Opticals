@@ -118,7 +118,8 @@ module.exports = createCoreController(
           return {
             ...variant,
             // Calculate available stock by subtracting the quantity in the cart
-            available_stock: variant.stock - quantityInCart
+            available_stock: variant.stock - quantityInCart,
+            is_combined_product: totalCombinedStock > variant.stock
           };
         });
 
@@ -133,6 +134,7 @@ module.exports = createCoreController(
             combined_stock_total: totalCombinedStock,
             // Calculate combined stock available by subtracting total cart quantity
             combined_stock_available: totalCombinedStock - totalQuantityInCart,
+            total_quantity_in_cart_all_variants: totalQuantityInCart,
           },
         });
       } catch (err) {
