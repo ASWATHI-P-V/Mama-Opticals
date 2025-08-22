@@ -362,6 +362,100 @@ export interface AdminUser extends Schema.CollectionType {
   };
 }
 
+export interface ApiAccessoryAccessory extends Schema.CollectionType {
+  collectionName: 'accessories';
+  info: {
+    description: '';
+    displayName: 'Accessory';
+    pluralName: 'accessories';
+    singularName: 'accessory';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  pluginOptions: {
+    i18n: {
+      localized: true;
+    };
+  };
+  attributes: {
+    brand: Attribute.String &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::accessory.accessory',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    description: Attribute.Text &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    images: Attribute.Media<'images', true> &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    locale: Attribute.String;
+    localizations: Attribute.Relation<
+      'api::accessory.accessory',
+      'oneToMany',
+      'api::accessory.accessory'
+    >;
+    name: Attribute.String &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    offerPrice: Attribute.Integer &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    offers: Attribute.Text &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    price: Attribute.String &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    product_variants: Attribute.Relation<
+      'api::accessory.accessory',
+      'oneToMany',
+      'api::product-variant.product-variant'
+    >;
+    publishedAt: Attribute.DateTime;
+    type: Attribute.Enumeration<['cleaning-kit', 'case', 'strap']> &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::accessory.accessory',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+  };
+}
+
 export interface ApiAddressAddress extends Schema.CollectionType {
   collectionName: 'addresses';
   info: {
@@ -951,6 +1045,102 @@ export interface ApiColorColor extends Schema.CollectionType {
   };
 }
 
+export interface ApiContactLensContactLens extends Schema.CollectionType {
+  collectionName: 'contact_lenses';
+  info: {
+    description: '';
+    displayName: 'Contact Lens';
+    pluralName: 'contact-lenses';
+    singularName: 'contact-lens';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  pluginOptions: {
+    i18n: {
+      localized: true;
+    };
+  };
+  attributes: {
+    brand: Attribute.String &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::contact-lens.contact-lens',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    description: Attribute.String &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    images: Attribute.Media<'images', true> &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    locale: Attribute.String;
+    localizations: Attribute.Relation<
+      'api::contact-lens.contact-lens',
+      'oneToMany',
+      'api::contact-lens.contact-lens'
+    >;
+    name: Attribute.String &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    offerPrice: Attribute.Integer &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    offers: Attribute.Text &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    price: Attribute.String &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    product_variants: Attribute.Relation<
+      'api::contact-lens.contact-lens',
+      'oneToMany',
+      'api::product-variant.product-variant'
+    >;
+    publishedAt: Attribute.DateTime;
+    type: Attribute.Enumeration<
+      ['daily', 'weekly', 'monthly', 'toric', 'multifocal']
+    > &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::contact-lens.contact-lens',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+  };
+}
+
 export interface ApiCustomerSupportCustomerSupport
   extends Schema.CollectionType {
   collectionName: 'customer_supports';
@@ -1191,6 +1381,12 @@ export interface ApiFrameShapeFrameShape extends Schema.CollectionType {
       'admin::user'
     > &
       Attribute.Private;
+    image: Attribute.Media<'images'> &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: false;
+        };
+      }>;
     locale: Attribute.String;
     localizations: Attribute.Relation<
       'api::frame-shape.frame-shape',
@@ -1675,6 +1871,11 @@ export interface ApiProductVariantProductVariant extends Schema.CollectionType {
     draftAndPublish: false;
   };
   attributes: {
+    accessory: Attribute.Relation<
+      'api::product-variant.product-variant',
+      'manyToOne',
+      'api::accessory.accessory'
+    >;
     color: Attribute.Relation<
       'api::product-variant.product-variant',
       'manyToOne',
@@ -1682,6 +1883,11 @@ export interface ApiProductVariantProductVariant extends Schema.CollectionType {
     >;
     color_picker: Attribute.String &
       Attribute.CustomField<'plugin::color-picker.color'>;
+    contact_len: Attribute.Relation<
+      'api::product-variant.product-variant',
+      'manyToOne',
+      'api::contact-lens.contact-lens'
+    >;
     createdAt: Attribute.DateTime;
     createdBy: Attribute.Relation<
       'api::product-variant.product-variant',
@@ -1869,9 +2075,9 @@ export interface ApiProductProduct extends Schema.CollectionType {
       'oneToMany',
       'api::review.review'
     >;
-    types: Attribute.Relation<
+    type: Attribute.Relation<
       'api::product.product',
-      'oneToMany',
+      'oneToOne',
       'api::type.type'
     >;
     updatedAt: Attribute.DateTime;
@@ -2588,6 +2794,7 @@ declare module '@strapi/types' {
       'admin::transfer-token': AdminTransferToken;
       'admin::transfer-token-permission': AdminTransferTokenPermission;
       'admin::user': AdminUser;
+      'api::accessory.accessory': ApiAccessoryAccessory;
       'api::address.address': ApiAddressAddress;
       'api::ai-chat-recommendation.ai-chat-recommendation': ApiAiChatRecommendationAiChatRecommendation;
       'api::banner.banner': ApiBannerBanner;
@@ -2599,6 +2806,7 @@ declare module '@strapi/types' {
       'api::chat-recommendation.chat-recommendation': ApiChatRecommendationChatRecommendation;
       'api::chat-session.chat-session': ApiChatSessionChatSession;
       'api::color.color': ApiColorColor;
+      'api::contact-lens.contact-lens': ApiContactLensContactLens;
       'api::customer-support.customer-support': ApiCustomerSupportCustomerSupport;
       'api::eye-care-category.eye-care-category': ApiEyeCareCategoryEyeCareCategory;
       'api::eye-power.eye-power': ApiEyePowerEyePower;

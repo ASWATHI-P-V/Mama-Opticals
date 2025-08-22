@@ -61,6 +61,18 @@
       "relation": "manyToOne",
       "target": "api::color.color",
       "inversedBy": "product_variants"
+    },
+    "contact_len": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::contact-lens.contact-lens",
+      "inversedBy": "product_variants"
+    },
+    "accessory": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::accessory.accessory",
+      "inversedBy": "product_variants"
     }
   }
 }

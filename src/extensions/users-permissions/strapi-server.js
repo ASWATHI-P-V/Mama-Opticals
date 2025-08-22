@@ -1379,6 +1379,7 @@ module.exports = (plugin) => {
       return ctx.send({
         success: true,
         message: "Password updated successfully.",
+        data: {}
       });
     } catch (error) {
       const customizedError = handleErrors(error);
@@ -1386,6 +1387,7 @@ module.exports = (plugin) => {
         {
           success: false,
           message: customizedError.message,
+          data: {},
         },
         handleStatusCode(error) || 500
       );
@@ -1491,6 +1493,7 @@ module.exports = (plugin) => {
       return ctx.send({
         success: true,
         message: "OTP verified successfully. You can now reset your password.",
+        data: []
       });
     } catch (error) {
       const customizedError = handleErrors(error);
@@ -1498,6 +1501,7 @@ module.exports = (plugin) => {
         {
           success: false,
           message: customizedError.message,
+          data: []
         },
         handleStatusCode(error) || 500
       );
@@ -1553,6 +1557,7 @@ module.exports = (plugin) => {
         success: true,
         message:
           "Password reset successfully. You can now log in with your new password.",
+        data: {}
       });
     } catch (error) {
       const customizedError = handleErrors(error);
@@ -1560,6 +1565,7 @@ module.exports = (plugin) => {
         {
           success: false,
           message: customizedError.message,
+          data: {}
         },
         handleStatusCode(error) || 500
       );

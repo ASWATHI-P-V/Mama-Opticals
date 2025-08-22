@@ -11,6 +11,7 @@ module.exports = createCoreController('api::frame-shape.frame-shape', ({ strapi 
     try {
       const queryOptions = {
         locale: locale || 'en',
+        populate: ['image'], 
       };
 
       const frameShapes = await strapi.entityService.findMany(
@@ -62,7 +63,7 @@ module.exports = createCoreController('api::frame-shape.frame-shape', ({ strapi 
         'api::frame-shape.frame-shape',
         id,
         {
-          populate: ['localizations'],
+          populate: ['localizations', 'image'],
           locale: defaultLocale,
         }
       );
@@ -84,7 +85,7 @@ module.exports = createCoreController('api::frame-shape.frame-shape', ({ strapi 
           localizedFrameShape = await strapi.entityService.findOne(
             'api::frame-shape.frame-shape',
             foundLocalization.id,
-            { locale: locale }
+            { populate: ['image'],locale: locale }
           );
         }
       }
