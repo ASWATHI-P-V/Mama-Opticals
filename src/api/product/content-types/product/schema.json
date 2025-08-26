@@ -59,12 +59,7 @@
       "target": "api::category.category",
       "inversedBy": "products"
     },
-    "orders": {
-      "type": "relation",
-      "relation": "manyToMany",
-      "target": "api::order.order",
-      "mappedBy": "products"
-    },
+
     "wishlistedByUsers": {
       "type": "relation",
       "relation": "oneToMany",
@@ -161,6 +156,12 @@
       "relation": "oneToMany",
       "target": "api::product-variant.product-variant",
       "mappedBy": "product"
+    },
+    "orders": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::order.order",
+      "mappedBy": "products"
     }
   }
 }

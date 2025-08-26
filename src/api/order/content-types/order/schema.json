@@ -20,7 +20,7 @@
       "type": "string",
       "pluginOptions": {
         "i18n": {
-          "localized": true
+          "localized": false
         }
       }
     },
@@ -45,17 +45,15 @@
       "target": "plugin::users-permissions.user",
       "inversedBy": "orders"
     },
-    "products": {
-      "type": "relation",
-      "relation": "manyToMany",
-      "target": "api::product.product",
-      "inversedBy": "orders"
+    "items": {
+      "type": "json",
+      "description": "JSON field to store a snapshot of the products and their quantities at the time of order."
     },
     "totalAmount": {
       "type": "decimal",
       "pluginOptions": {
         "i18n": {
-          "localized": true
+          "localized": false
         }
       }
     },
@@ -115,6 +113,12 @@
       "type": "relation",
       "relation": "oneToOne",
       "target": "api::address.address"
+    },
+    "products": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::product.product",
+      "inversedBy": "orders"
     }
   }
 }

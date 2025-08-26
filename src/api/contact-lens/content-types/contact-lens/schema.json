@@ -46,7 +46,7 @@
           "localized": true
         }
       },
-      "type": "string"
+      "type": "integer"
     },
     "type": {
       "pluginOptions": {
@@ -76,12 +76,6 @@
         }
       }
     },
-    "product_variants": {
-      "type": "relation",
-      "relation": "oneToMany",
-      "target": "api::product-variant.product-variant",
-      "mappedBy": "contact_len"
-    },
     "offers": {
       "pluginOptions": {
         "i18n": {
@@ -97,6 +91,12 @@
         }
       },
       "type": "integer"
+    },
+    "product_variants": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::product-variant.product-variant",
+      "mappedBy": "contact_lens"
     }
   }
 }

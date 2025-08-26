@@ -428,7 +428,7 @@ export interface ApiAccessoryAccessory extends Schema.CollectionType {
           localized: true;
         };
       }>;
-    price: Attribute.String &
+    price: Attribute.Integer &
       Attribute.SetPluginOptions<{
         i18n: {
           localized: true;
@@ -1111,7 +1111,7 @@ export interface ApiContactLensContactLens extends Schema.CollectionType {
           localized: true;
         };
       }>;
-    price: Attribute.String &
+    price: Attribute.Integer &
       Attribute.SetPluginOptions<{
         i18n: {
           localized: true;
@@ -1783,6 +1783,7 @@ export interface ApiOrderOrder extends Schema.CollectionType {
           localized: true;
         };
       }>;
+    items: Attribute.JSON;
     locale: Attribute.String;
     localizations: Attribute.Relation<
       'api::order.order',
@@ -1798,7 +1799,7 @@ export interface ApiOrderOrder extends Schema.CollectionType {
     orderID: Attribute.String &
       Attribute.SetPluginOptions<{
         i18n: {
-          localized: true;
+          localized: false;
         };
       }>;
     paymentMethod: Attribute.String &
@@ -1835,7 +1836,7 @@ export interface ApiOrderOrder extends Schema.CollectionType {
     totalAmount: Attribute.Decimal &
       Attribute.SetPluginOptions<{
         i18n: {
-          localized: true;
+          localized: false;
         };
       }>;
     trackingId: Attribute.String &
@@ -1883,7 +1884,7 @@ export interface ApiProductVariantProductVariant extends Schema.CollectionType {
     >;
     color_picker: Attribute.String &
       Attribute.CustomField<'plugin::color-picker.color'>;
-    contact_len: Attribute.Relation<
+    contact_lens: Attribute.Relation<
       'api::product-variant.product-variant',
       'manyToOne',
       'api::contact-lens.contact-lens'

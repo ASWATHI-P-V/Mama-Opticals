@@ -140,7 +140,7 @@ const getProductVariantAndMaster = async (variantId, strapi) => {
       parentType = 'product';
     } else if (productVariant.contact_lens) {
       masterProduct = productVariant.contact_lens;
-      parentType = 'contact-lens';
+      parentType = 'contact_lens';
     } else if (productVariant.accessory) {
       masterProduct = productVariant.accessory;
       parentType = 'accessory';
@@ -234,6 +234,19 @@ const getAllCartItemsForProduct = async (userId, masterProductId, parentType, st
   }
 };
 
+// Helper function to dynamically get the master product from a variant
+const getMasterProductFromVariant = (variant) => {
+  if (variant.product) {
+    return { master: variant.product, type: 'product' };
+  } else if (variant.contact_lens) {
+    return { master: variant.contact_lens, type: 'contact-lens' };
+  } else if (variant.accessory) {
+    return { master: variant.accessory, type: 'accessory' };
+  }
+  return { master: null, type: null };
+};
+
+
 module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
 
   // MARK: GetCart
@@ -301,19 +314,7 @@ module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
           return null;
         }
 
-        // Dynamically determine the master product
-        let masterProduct = null;
-        let productType = null;
-        if (variant.product) {
-          masterProduct = variant.product;
-          productType = 'product';
-        } else if (variant.contact_lens) {
-          masterProduct = variant.contact_lens;
-          productType = 'contact-lens';
-        } else if (variant.accessory) {
-          masterProduct = variant.accessory;
-          productType = 'accessory';
-        }
+        const { master: masterProduct, type: productType } = getMasterProductFromVariant(variant);
 
         if (!masterProduct) {
           console.warn(`Variant ${variant.id} has no master product linked.`);
@@ -340,27 +341,17 @@ module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
           productCombinedStockCache.set(masterProduct.id, combinedStock);
         }
 
-        const productDetails = {
-          ...masterProduct,
-          offerPrice: masterProduct.offer_price, // Use 'offer_price' from the query
-          combinedStock: combinedStock, // Add the newly calculated combined stock
-          product_type: productType,
-        };
-        // Clean up the offer_price key to avoid redundancy
-        delete productDetails.offer_price;
-
         const formattedVariant = {
-          id: variant.id,
-          createdAt: variant.createdAt,
-          updatedAt: variant.updatedAt,
+          ...variant,
           stock: variant.stock, // This is the stock for the specific variant
-          isActive: variant.isActive,
-          inStock: variant.inStock,
-          salesCount: variant.salesCount,
-          color_picker: variant.color_picker,
-          product: productDetails,
-          frame_size: variant.frame_size,
+          combined_stock: combinedStock, // Add the newly calculated combined stock
+          parent_product: masterProduct, // Use a generic name for the parent
+          product_type: productType, // Add the type of the parent product
         };
+        // Clean up the specific parent relations to avoid redundancy
+        delete formattedVariant.product;
+        delete formattedVariant.contact_lens;
+        delete formattedVariant.accessory;
 
         return {
           id: item.id,
@@ -410,6 +401,7 @@ module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
       if (!Number.isInteger(quantity)) {
         throw new ValidationError("Quantity must be a whole number.");
       }
+
 
       const { productVariant, masterProduct, totalStock, hasActiveVariant, parentType } = await getProductVariantAndMaster(variantId, strapi);
 
@@ -487,19 +479,11 @@ module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
           populate: { 
             product_variant: { 
               populate: {
-                product: {
-                  select: ["id", "name", "price", "offers", "offerPrice"],
-                  populate: { image: { select: ["url"] } }
-                },
-                contact_lens: {
-                  select: ["id", "name", "price", "offers", "offerPrice"],
-                  populate: { image: { select: ["url"] } }
-                },
-                accessory: {
-                  select: ["id", "name", "price", "offers", "offerPrice"],
-                  populate: { image: { select: ["url"] } }
-                },
+                product: { populate: { image: true } },
+                contact_lens: { populate: { image: true } },
+                accessory: { populate: { image: true } },
                 color_picker: true,
+                frame_size: true,
               }
             } 
           }
@@ -512,19 +496,11 @@ module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
           populate: { 
             product_variant: { 
               populate: {
-                product: {
-                  select: ["id", "name", "price", "offers", "offerPrice"],
-                  populate: { image: { select: ["url"] } }
-                },
-                contact_len: {
-                  select: ["id", "name", "price", "offers", "offerPrice"],
-                  populate: { image: { select: ["url"] } }
-                },
-                accessory: {
-                  select: ["id", "name", "price", "offers", "offerPrice"],
-                  populate: { image: { select: ["url"] } }
-                },
+                product: { populate: { image: true } },
+                contact_lens: { populate: { image: true } },
+                accessory: { populate: { image: true } },
                 color_picker: true,
+                frame_size: true,
               }
             } 
           }
@@ -532,47 +508,34 @@ module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
         message = quantity > 0 ? "Product quantity updated in cart." : "Product quantity decreased in cart.";
       }
       
-      // Re-fetch to get the most up-to-date cart info for the response
-      const finalCartEntry = await strapi.db.query("api::cart.cart").findOne({
-        where: { id: updatedCartEntry.id },
-        populate: {
-          product_variant: {
-            populate: {
-              product: true,
-              contact_lens: true,
-              accessory: true,
-              color_picker: true,
-            }
-          }
-        }
-      });
-      
-      let finalMasterProduct = null;
-      if (finalCartEntry.product_variant.product) finalMasterProduct = finalCartEntry.product_variant.product;
-      else if (finalCartEntry.product_variant.contact_len) finalMasterProduct = finalCartEntry.product_variant.contact_len;
-      else if (finalCartEntry.product_variant.accessory) finalMasterProduct = finalCartEntry.product_variant.accessory;
+      const { master: finalMasterProduct, type: finalProductType } = getMasterProductFromVariant(updatedCartEntry.product_variant);
 
       return ctx.send({
         success: true,
         message: message,
         data: {
-          id: finalCartEntry.id,
-          quantity: finalCartEntry.quantity,
-          createdAt: finalCartEntry.createdAt,
-          updatedAt: finalCartEntry.updatedAt,
+          id: updatedCartEntry.id,
+          quantity: updatedCartEntry.quantity,
+          createdAt: updatedCartEntry.createdAt,
+          updatedAt: updatedCartEntry.updatedAt,
           product_variant: {
-            ...finalCartEntry.product_variant,
-            stock: finalCartEntry.product_variant.stock,
-            available_stock: finalCartEntry.product_variant.stock - finalCartEntry.quantity,
-            product: {
+            ...updatedCartEntry.product_variant,
+            stock: updatedCartEntry.product_variant.stock,
+            available_stock: updatedCartEntry.product_variant.stock - updatedCartEntry.quantity,
+            parent_product: {
               ...finalMasterProduct,
               offerPrice: finalMasterProduct.offerPrice
             },
+            product_type: finalProductType,
+            // Clean up the specific parent relations to avoid redundancy
+            product: undefined,
+            contact_lens: undefined,
+            accessory: undefined,
           },
           combined_stock_total: totalStock,
           combined_stock_available: totalStock - newTotalQuantityAcrossAllVariants,
           total_quantity_in_cart_all_variants: newTotalQuantityAcrossAllVariants,
-          is_combined_product: totalStock > (finalCartEntry.product_variant.stock || 0)
+          is_combined_product: totalStock > (updatedCartEntry.product_variant.stock || 0)
         }
       });
     } catch (error) {
@@ -633,8 +596,7 @@ module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
       );
     }
   },
-
-  // MARK: Clear entire cart
+// MARK: Clear entire cart
   async clearCart(ctx) {
     try {
       const { id: userId } = ctx.state.user;
@@ -644,7 +606,8 @@ module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
       }
 
       const cartEntries = await strapi.db.query("api::cart.cart").findMany({
-        where: { user: userId }
+        where: { user: userId },
+        select: ["id"] // Only fetch the IDs to optimize the query
       });
 
       if (!cartEntries || cartEntries.length === 0) {
@@ -656,17 +619,23 @@ module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
           }
         });
       }
-
-      await strapi.db.query("api::cart.cart").deleteMany({
-        where: { user: userId }
-      });
+      
+      let itemsRemovedCount = 0;
+      // Use a for...of loop for async operations in sequence
+      for (const entry of cartEntries) {
+        // Use `delete` on a single item to avoid the problematic `deleteMany` query
+        await strapi.db.query("api::cart.cart").delete({
+          where: { id: entry.id }
+        });
+        itemsRemovedCount++;
+      }
 
       return ctx.send({
         success: true,
         message: "Cart cleared successfully.",
         data: {
           user_id: userId,
-          items_removed: cartEntries.length
+          items_removed: itemsRemovedCount
         }
       });
 
@@ -751,16 +720,8 @@ module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
             return;
           }
 
-          // Dynamically get the master product
-          let masterProduct;
-          if (variant.product) {
-            masterProduct = variant.product;
-          } else if (variant.contact_lens) {
-            masterProduct = variant.contact_lens;
-          } else if (variant.accessory) {
-            masterProduct = variant.accessory;
-          }
-          
+          const { master: masterProduct, type: productType } = getMasterProductFromVariant(variant);
+
           if (!masterProduct) {
             console.warn(`Cart item ${item.id} has no master product linked:`, variant);
             invalidItems.push({
@@ -786,6 +747,7 @@ module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
           // Calculate totals for valid items
           totalItems += item.quantity;
           
+          // Correctly check for offers and use the right key
           const effectivePrice = masterProduct.offers && typeof masterProduct.offerPrice === 'number'
             ? masterProduct.offerPrice
             : masterProduct.price;
@@ -851,6 +813,1674 @@ module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
     }
   }
 }));
+
+
+
+
+// // src/api/cart/controllers/cart.js
+
+// "use strict";
+
+// const { createCoreController } = require("@strapi/strapi").factories;
+// const { ValidationError, NotFoundError } = require("@strapi/utils").errors;
+
+// // Helper function to handle and format errors
+// const handleErrors = (error) => {
+//   console.error("Error occurred:", error);
+//   const errorMessage = String(error.message || "");
+
+//   if (error instanceof ValidationError) {
+//     return { message: errorMessage };
+//   }
+//   if (error instanceof NotFoundError) {
+//     return { message: errorMessage };
+//   }
+//   if (errorMessage.includes("out of stock or insufficient quantity")) {
+//     return { message: errorMessage };
+//   }
+//   if (errorMessage.includes("Product not found in cart for this user.")) {
+//     return { message: errorMessage };
+//   }
+//   if (errorMessage.includes("Product variant not found in cart for this user.")) {
+//     return { message: errorMessage };
+//   }
+//   if (errorMessage.includes("Cart is already empty for this user.")) {
+//     return { message: errorMessage };
+//   }
+//   if (errorMessage.includes("User does not have a cart yet.")) {
+//     return { message: errorMessage };
+//   }
+//   if (errorMessage.includes("product is currently not active")) {
+//     return { message: errorMessage };
+//   }
+//   if (errorMessage.includes("product variant is currently not active")) {
+//     return { message: errorMessage };
+//   }
+//   if (errorMessage.includes("Cannot read properties of undefined")) {
+//     return { message: "Invalid data structure encountered. Please refresh and try again." };
+//   }
+//   if (errorMessage.includes("User not authenticated")) {
+//     return { message: "User authentication required." };
+//   }
+//   if (errorMessage.includes("Invalid Product Variant ID")) {
+//     return { message: "Invalid product variant ID provided." };
+//   }
+//   if (errorMessage.includes("Product variant not found")) {
+//     return { message: "Product variant not found." };
+//   }
+//   return { message: "An unexpected error occurred." };
+// };
+
+// // Helper function to map error messages to status codes
+// const handleStatusCode = (error) => {
+//   if (error instanceof ValidationError) return 400;
+//   if (error instanceof NotFoundError) return 404;
+//   if (String(error.message || "").includes("out of stock or insufficient quantity")) {
+//     return 400;
+//   }
+//   if (String(error.message || "").includes("Product not found in cart for this user.")) {
+//     return 404;
+//   }
+//   if (String(error.message || "").includes("Product variant not found in cart for this user.")) {
+//     return 404;
+//   }
+//   if (String(error.message || "").includes("product variant is currently not active")) {
+//     return 400;
+//   }
+//   if (String(error.message || "").includes("User not authenticated")) {
+//     return 401;
+//   }
+//   if (String(error.message || "").includes("Invalid Product Variant ID")) {
+//     return 400;
+//   }
+//   if (String(error.message || "").includes("Product variant not found")) {
+//     return 404;
+//   }
+//   if (String(error.message || "").includes("Cannot read properties of undefined")) {
+//     return 500;
+//   }
+//   if (String(error.message || "").includes("Cart is already empty for this user.")) {
+//     return 200;
+//   }
+//   if (String(error.message || "").includes("User does not have a cart yet.")) {
+//     return 200;
+//   }
+//   return 500;
+// };
+
+// // Helper function to validate request body fields
+// const validateBodyRequiredFields = (body, fields) => {
+//   const missingFields = fields.filter(field => !body[field]);
+//   if (missingFields.length > 0) {
+//     throw new ValidationError(`Missing required fields: ${missingFields.join(', ')}`);
+//   }
+// };
+
+// /**
+//  * Helper to get a product variant and its master product dynamically.
+//  * This function is now the core of the polymorphic logic.
+//  */
+// const getProductVariantAndMaster = async (variantId, strapi) => {
+//   try {
+//     if (!variantId || isNaN(parseInt(variantId))) {
+//       throw new ValidationError("Invalid Product Variant ID provided.");
+//     }
+
+//     // Find the specific product variant, populating all three possible parent relations.
+//     const productVariant = await strapi.db.query("api::product-variant.product-variant").findOne({
+//       where: { id: variantId },
+//       populate: {
+//         product: {
+//           select: ["id", "name", "price", "offers", "offerPrice", "locale"],
+//           populate: { image: { select: ["url", "name", "alternativeText"] } },
+//         },
+//         contact_lens: {
+//           select: ["id", "name", "price", "offers", "offerPrice", "locale"],
+//           populate: { image: { select: ["url", "name", "alternativeText"] } },
+//         },
+//         accessory: {
+//           select: ["id", "name", "price", "offers", "offerPrice", "locale"],
+//           populate: { image: { select: ["url", "name", "alternativeText"] } },
+//         },
+//         frame_size: true,
+//         color: true,
+//       },
+//     });
+
+//     if (!productVariant) {
+//       throw new NotFoundError("Product variant not found.");
+//     }
+
+//     // Dynamically determine the master product based on which relation is populated.
+//     let masterProduct = null;
+//     let parentType = null;
+//     if (productVariant.product) {
+//       masterProduct = productVariant.product;
+//       parentType = 'product';
+//     } else if (productVariant.contact_lens) {
+//       masterProduct = productVariant.contact_lens;
+//       parentType = 'contact-lens';
+//     } else if (productVariant.accessory) {
+//       masterProduct = productVariant.accessory;
+//       parentType = 'accessory';
+//     }
+
+//     if (!masterProduct) {
+//       throw new ValidationError("Product variant is not linked to any master product.");
+//     }
+
+//     // Calculate combined stock based on all variants of the master product.
+//     const allVariants = await strapi.db.query("api::product-variant.product-variant").findMany({
+//       where: { [parentType]: masterProduct.id },
+//       select: ["id", "stock", "isActive", "inStock"]
+//     });
+
+//     if (!allVariants || allVariants.length === 0) {
+//       throw new ValidationError("No variants found for this product.");
+//     }
+
+//     const totalStock = allVariants.reduce((sum, variant) => {
+//       const stock = typeof variant.stock === 'number' ? variant.stock : 0;
+//       return sum + stock;
+//     }, 0);
+//     
+//     const hasActiveVariant = allVariants.some(variant => 
+//       variant.isActive && variant.inStock && (variant.stock || 0) > 0
+//     );
+
+//     return {
+//       productVariant,
+//       masterProduct,
+//       totalStock,
+//       hasActiveVariant,
+//       allVariants, // Return all variants to calculate total quantity in cart
+//       parentType
+//     };
+//   } catch (error) {
+//     console.error("Error in getProductVariantAndMaster:", error);
+//     throw error;
+//   }
+// };
+
+// /**
+//  * Helper to get all cart items for a given master product and all its variants.
+//  * This is now more robust to handle any product type.
+//  */
+// const getAllCartItemsForProduct = async (userId, masterProductId, parentType, strapi) => {
+//   try {
+//     if (!userId || !masterProductId || !parentType) {
+//       throw new ValidationError("User ID, Master Product ID, and Parent Type are required.");
+//     }
+
+//     const allVariants = await strapi.db.query("api::product-variant.product-variant").findMany({
+//       where: { [parentType]: masterProductId },
+//       select: ["id"]
+//     });
+
+//     const allVariantIds = allVariants.map(variant => variant.id).filter(id => id);
+
+//     if (allVariantIds.length === 0) {
+//       return { cartItems: [], totalQuantityInCart: 0 };
+//     }
+
+//     const cartItems = await strapi.db.query("api::cart.cart").findMany({
+//       where: {
+//         user: userId,
+//         product_variant: { id: { $in: allVariantIds } }
+//       },
+//       populate: {
+//         product_variant: {
+//           select: ["id", "stock", "isActive", "inStock"]
+//         }
+//       }
+//     });
+//     
+//     const validCartItems = cartItems.filter(item => 
+//       item && item.product_variant && typeof item.quantity === 'number'
+//     );
+
+//     const totalQuantityInCart = validCartItems.reduce((sum, item) => {
+//       return sum + (item.quantity || 0);
+//     }, 0);
+
+//     return {
+//       cartItems: validCartItems,
+//       totalQuantityInCart,
+//     };
+//   } catch (error) {
+//     console.error("Error in getAllCartItemsForProduct:", error);
+//     throw error;
+//   }
+// };
+
+// // Helper function to dynamically get the master product from a variant
+// const getMasterProductFromVariant = (variant) => {
+//   if (variant.product) {
+//     return { master: variant.product, type: 'product' };
+//   } else if (variant.contact_lens) {
+//     return { master: variant.contact_lens, type: 'contact-lens' };
+//   } else if (variant.accessory) {
+//     return { master: variant.accessory, type: 'accessory' };
+//   }
+//   return { master: null, type: null };
+// };
+
+
+// module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
+
+//   // MARK: GetCart
+//   async getMyCart(ctx) {
+//     try {
+//       // Get the user from the JWT token
+//       const user = ctx.state.user;
+//       if (!user) {
+//         return ctx.unauthorized("Authentication required.");
+//       }
+//       const userId = user.id;
+
+//       // Fetch cart items for the user, populating the necessary relations
+//       const cartItems = await strapi.db.query("api::cart.cart").findMany({
+//         where: { user: userId },
+//         populate: {
+//           product_variant: {
+//             populate: {
+//               product: {
+//                 select: ["id", "name", "price", "offers", "offerPrice", "locale"],
+//                 populate: {
+//                   image: { select: ["url", "name", "alternativeText"] },
+//                   localizations: { select: ["id", "locale"] },
+//                 },
+//               },
+//               contact_lens: {
+//                 select: ["id", "name", "price", "offers", "offerPrice", "locale"],
+//                 populate: {
+//                   image: { select: ["url", "name", "alternativeText"] },
+//                 },
+//               },
+//               accessory: {
+//                 select: ["id", "name", "price", "offers", "offerPrice", "locale"],
+//                 populate: {
+//                   image: { select: ["url", "name", "alternativeText"] },
+//                 },
+//               },
+//               color_picker: true,
+//               frame_size: true,
+//             },
+//           },
+//         },
+//       });
+
+//       // Handle the case where the cart is empty
+//       if (!cartItems || cartItems.length === 0) {
+//         return ctx.send({
+//           success: true,
+//           message: "User does not have a cart yet or cart is empty.",
+//           data: {
+//             cart_items: [],
+//             total_items: 0,
+//           }
+//         });
+//       }
+
+//       // Cache to store combined stock for each product to avoid redundant queries
+//       const productCombinedStockCache = new Map();
+
+//       // Format the data to match the desired output structure precisely
+//       const formattedCartItems = await Promise.all(cartItems.map(async (item) => {
+//         const variant = item.product_variant;
+//         if (!variant) {
+//           console.warn(`Cart item ${item.id} has missing variant data and will be skipped.`);
+//           return null;
+//         }
+
+//         const { master: masterProduct, type: productType } = getMasterProductFromVariant(variant);
+
+//         if (!masterProduct) {
+//           console.warn(`Variant ${variant.id} has no master product linked.`);
+//           return null;
+//         }
+
+//         let combinedStock = 0;
+//         // Check if combined stock for this product has already been calculated
+//         if (productCombinedStockCache.has(masterProduct.id)) {
+//           combinedStock = productCombinedStockCache.get(masterProduct.id);
+//         } else {
+//           // If not, fetch all variants for the master product and calculate the total stock
+//           const allProductVariants = await strapi.entityService.findMany(
+//             "api::product-variant.product-variant", {
+//               filters: {
+//                 [productType]: { id: masterProduct.id },
+//                 isActive: true,
+//                 stock: { $gt: 0 },
+//               },
+//               fields: ["stock"]
+//             });
+//           
+//           combinedStock = allProductVariants.reduce((sum, v) => sum + v.stock, 0);
+//           productCombinedStockCache.set(masterProduct.id, combinedStock);
+//         }
+
+//         const formattedVariant = {
+//           ...variant,
+//           stock: variant.stock, // This is the stock for the specific variant
+//           combined_stock: combinedStock, // Add the newly calculated combined stock
+//           parent_product: masterProduct, // Use a generic name for the parent
+//           product_type: productType, // Add the type of the parent product
+//         };
+//         // Clean up the specific parent relations to avoid redundancy
+//         delete formattedVariant.product;
+//         delete formattedVariant.contact_lens;
+//         delete formattedVariant.accessory;
+
+//         return {
+//           id: item.id,
+//           quantity: item.quantity,
+//           createdAt: item.createdAt,
+//           updatedAt: item.updatedAt,
+//           product_variant: formattedVariant,
+//         };
+//       }));
+
+//       // Filter out any null values that were returned for invalid cart items
+//       const validFormattedCartItems = formattedCartItems.filter(item => item !== null);
+
+//       // Send the formatted response
+//       return ctx.send({
+//         success: true,
+//         message: "Cart retrieved successfully",
+//         data:{
+//           cart_items: validFormattedCartItems,
+//           total_items: validFormattedCartItems.length,
+//         }
+//       });
+//     } catch (err) {
+//       console.error("Error in getMyCart:", err);
+//       // In a production environment, you might want a more generic error message
+//       return ctx.internalServerError("An internal server error occurred.");
+//     }
+//   },
+//   // MARK: Add Product Variant to Cart
+//   async addProductToCart(ctx) {
+//     try {
+//       const { id: userId } = ctx.state.user;
+//       
+//       if (!userId) {
+//         throw new ValidationError("User not authenticated.");
+//       }
+
+//       const requestBody = ctx.request.body || {};
+//       const { variantId, quantity } = requestBody.data || requestBody;
+
+//       validateBodyRequiredFields(requestBody.data || requestBody, ["variantId", "quantity"]);
+
+//       if (quantity === 0) {
+//         throw new ValidationError("Quantity cannot be zero.");
+//       }
+
+//       if (!Number.isInteger(quantity)) {
+//         throw new ValidationError("Quantity must be a whole number.");
+//       }
+
+//       const { productVariant, masterProduct, totalStock, hasActiveVariant, parentType } = await getProductVariantAndMaster(variantId, strapi);
+
+//       // Comprehensive validation checks
+//       if (!hasActiveVariant) {
+//         throw new ValidationError("This product variant is currently not active or out of stock.");
+//       }
+
+//       if (!productVariant.isActive || !productVariant.inStock || (productVariant.stock || 0) < 1) {
+//         throw new ValidationError("This specific product variant is currently not active or out of stock.");
+//       }
+//       
+//       const { cartItems, totalQuantityInCart } = await getAllCartItemsForProduct(userId, masterProduct.id, parentType, strapi);
+//       
+//       const currentCartEntry = cartItems.find(item => 
+//         item.product_variant && item.product_variant.id === parseInt(variantId)
+//       );
+//       const currentQuantityForThisVariant = currentCartEntry ? currentCartEntry.quantity : 0;
+//       
+//       const newTotalQuantityAcrossAllVariants = totalQuantityInCart + quantity;
+//       const newQuantityForThisVariant = currentQuantityForThisVariant + quantity;
+//       
+//       // Handle decrement logic
+//       if (quantity < 0) {
+//         if (!currentCartEntry) {
+//           throw new NotFoundError("Product variant not found in cart for this user to decrement.");
+//         }
+//         if (newQuantityForThisVariant < 0) {
+//           throw new ValidationError("Cannot decrement quantity below zero.");
+//         }
+//         if (newQuantityForThisVariant === 0) {
+//           await strapi.db.query("api::cart.cart").delete({
+//             where: { id: currentCartEntry.id }
+//           });
+//           return ctx.send({
+//             success: true,
+//             message: "Product quantity decreased to zero and removed from cart.",
+//             data: {
+//               product_id: masterProduct.id, 
+//               variant_id: parseInt(variantId), 
+//               user_id: userId
+//             }
+//           });
+//         }
+//       } 
+//       // Handle increment logic with comprehensive stock validation
+//       else {
+//         // Check combined stock across all variants
+//         if (newTotalQuantityAcrossAllVariants > totalStock) {
+//           const availableStock = Math.max(0, totalStock - totalQuantityInCart);
+//           throw new ValidationError(
+//             `Product ${masterProduct.name} has insufficient combined stock. Available: ${availableStock}, Requested: ${quantity}.`
+//           );
+//         }
+//         
+//         // Check individual variant stock
+//         if (newQuantityForThisVariant > (productVariant.stock || 0)) {
+//           const availableForThisVariant = Math.max(0, (productVariant.stock || 0) - currentQuantityForThisVariant);
+//           throw new ValidationError(
+//             `This product variant has insufficient stock. Available: ${availableForThisVariant}, Requested: ${quantity}.`
+//           );
+//         }
+//       }
+//       
+//       let updatedCartEntry;
+//       let message = "";
+//       
+//       if (!currentCartEntry) {
+//         updatedCartEntry = await strapi.db.query("api::cart.cart").create({
+//           data: { 
+//             user: userId, 
+//             product_variant: parseInt(variantId), 
+//             quantity: quantity 
+//           },
+//           populate: { 
+//             product_variant: { 
+//               populate: {
+//                 product: { populate: { image: true } },
+//                 contact_lens: { populate: { image: true } },
+//                 accessory: { populate: { image: true } },
+//                 color_picker: true,
+//                 frame_size: true,
+//               }
+//             } 
+//           }
+//         });
+//         message = "Product added to cart.";
+//       } else {
+//         updatedCartEntry = await strapi.db.query("api::cart.cart").update({
+//           where: { id: currentCartEntry.id },
+//           data: { quantity: newQuantityForThisVariant },
+//           populate: { 
+//             product_variant: { 
+//               populate: {
+//                 product: { populate: { image: true } },
+//                 contact_lens: { populate: { image: true } },
+//                 accessory: { populate: { image: true } },
+//                 color_picker: true,
+//                 frame_size: true,
+//               }
+//             } 
+//           }
+//         });
+//         message = quantity > 0 ? "Product quantity updated in cart." : "Product quantity decreased in cart.";
+//       }
+//       
+//       const { master: finalMasterProduct, type: finalProductType } = getMasterProductFromVariant(updatedCartEntry.product_variant);
+
+//       return ctx.send({
+//         success: true,
+//         message: message,
+//         data: {
+//           id: updatedCartEntry.id,
+//           quantity: updatedCartEntry.quantity,
+//           createdAt: updatedCartEntry.createdAt,
+//           updatedAt: updatedCartEntry.updatedAt,
+//           product_variant: {
+//             ...updatedCartEntry.product_variant,
+//             stock: updatedCartEntry.product_variant.stock,
+//             available_stock: updatedCartEntry.product_variant.stock - updatedCartEntry.quantity,
+//             parent_product: {
+//               ...finalMasterProduct,
+//               offerPrice: finalMasterProduct.offerPrice
+//             },
+//             product_type: finalProductType,
+//             // Clean up the specific parent relations to avoid redundancy
+//             product: undefined,
+//             contact_lens: undefined,
+//             accessory: undefined,
+//           },
+//           combined_stock_total: totalStock,
+//           combined_stock_available: totalStock - newTotalQuantityAcrossAllVariants,
+//           total_quantity_in_cart_all_variants: newTotalQuantityAcrossAllVariants,
+//           is_combined_product: totalStock > (updatedCartEntry.product_variant.stock || 0)
+//         }
+//       });
+//     } catch (error) {
+//       console.error("Error in addProductToCart:", error);
+//       const customizedError = handleErrors(error);
+//       return ctx.send(
+//         { success: false, message: customizedError.message },
+//         handleStatusCode(error) || 500
+//       );
+//     }
+//   },
+
+//   // MARK: Remove Product Variant From Cart
+//   async removeProductFromCart(ctx) {
+//     try {
+//       const { id: userId } = ctx.state.user;
+//       if (!userId) {
+//         throw new ValidationError("User not authenticated.");
+//       }
+
+//       const { variantId } = ctx.params;
+//       const parsedVariantId = parseInt(variantId, 10);
+
+//       if (isNaN(parsedVariantId)) {
+//         throw new ValidationError("Invalid Product Variant ID provided in URL. Must be a number.");
+//       }
+
+//       const cartEntry = await strapi.db.query("api::cart.cart").findOne({
+//         where: { 
+//           user: userId, 
+//           product_variant: { id: parsedVariantId } 
+//         }
+//       });
+
+//       if (!cartEntry) {
+//         throw new NotFoundError("Product variant not found in cart for this user.");
+//       }
+
+//       await strapi.db.query("api::cart.cart").delete({
+//         where: { id: cartEntry.id }
+//       });
+
+//       return ctx.send({
+//         success: true,
+//         message: "Product variant removed from cart.",
+//         data: {
+//           product_variant_id: parsedVariantId, 
+//           user_id: userId
+//         }
+//       });
+
+//     } catch (error) {
+//       console.error("Error in removeProductFromCart:", error);
+//       const customizedError = handleErrors(error);
+//       return ctx.send(
+//         { success: false, message: customizedError.message },
+//         handleStatusCode(error) || 500
+//       );
+//     }
+//   },
+
+//   // MARK: Clear entire cart
+//   async clearCart(ctx) {
+//     try {
+//       const { id: userId } = ctx.state.user;
+
+//       if (!userId) {
+//         throw new ValidationError("User not authenticated.");
+//       }
+
+//       const cartEntries = await strapi.db.query("api::cart.cart").findMany({
+//         where: { user: userId }
+//       });
+
+//       if (!cartEntries || cartEntries.length === 0) {
+//         return ctx.send({
+//           success: true,
+//           message: "Cart is already empty for this user.",
+//           data: {
+//             user_id: userId
+//           }
+//         });
+//       }
+
+//       await strapi.db.query("api::cart.cart").deleteMany({
+//         where: { user: userId }
+//       });
+
+//       return ctx.send({
+//         success: true,
+//         message: "Cart cleared successfully.",
+//         data: {
+//           user_id: userId,
+//           items_removed: cartEntries.length
+//         }
+//       });
+
+//     } catch (error) {
+//       console.error("Error in clearCart:", error);
+//       const customizedError = handleErrors(error);
+//       return ctx.send(
+//         { success: false, message: customizedError.message },
+//         handleStatusCode(error) || 500
+//       );
+//     }
+//   },
+
+//   // MARK: Get cart summary with combined stock info
+//   async getCartSummary(ctx) {
+//     try {
+//       const { id: userId } = ctx.state.user;
+
+//       if (!userId) {
+//         throw new ValidationError("User not authenticated.");
+//       }
+
+//       const cart = await strapi.db.query("api::cart.cart").findMany({
+//         where: { user: userId },
+//         populate: {
+//           product_variant: {
+//             select: ["id", "stock", "inStock", "isActive"],
+//             populate: {
+//               product: {
+//                 select: ["id", "name", "price", "offers", "offerPrice", "locale"],
+//               },
+//               contact_lens: {
+//                 select: ["id", "name", "price", "offers", "offerPrice", "locale"],
+//               },
+//               accessory: {
+//                 select: ["id", "name", "price", "offers", "offerPrice", "locale"],
+//               }
+//             }
+//           }
+//         }
+//       });
+
+//       if (!cart || cart.length === 0) {
+//         return ctx.send({
+//           success: true,
+//           message: "Cart is empty.",
+//           data: {
+//             total_items: 0,
+//             total_unique_products: 0,
+//             estimated_total: 0,
+//             items_by_locale: {},
+//             invalid_items: []
+//           }
+//         });
+//       }
+
+//       let totalItems = 0;
+//       let estimatedTotal = 0;
+//       const itemsByLocale = {};
+//       const uniqueProducts = new Set();
+//       const invalidItems = [];
+
+//       cart.forEach((item, index) => {
+//         try {
+//           // Validate cart item structure
+//           if (!item || typeof item.quantity !== 'number') {
+//             console.warn(`Invalid cart item at index ${index}:`, item);
+//             invalidItems.push({
+//               cart_item_id: item?.id || `index_${index}`,
+//               error: "Invalid cart item structure - missing or invalid quantity"
+//             });
+//             return;
+//           }
+
+//           const variant = item.product_variant;
+//           if (!variant) {
+//             console.warn(`Cart item ${item.id} missing product_variant:`, item);
+//             invalidItems.push({
+//               cart_item_id: item.id,
+//               error: "Product variant not found or not properly populated"
+//             });
+//             return;
+//           }
+
+//           const { master: masterProduct, type: productType } = getMasterProductFromVariant(variant);
+
+//           if (!masterProduct) {
+//             console.warn(`Cart item ${item.id} has no master product linked:`, variant);
+//             invalidItems.push({
+//               cart_item_id: item.id,
+//               variant_id: variant.id,
+//               error: "Master product not found or not properly populated"
+//             });
+//             return;
+//           }
+//           
+//           // Validate required product fields
+//           if (!masterProduct.id || !masterProduct.name || typeof masterProduct.price !== 'number') {
+//             console.warn(`Cart item ${item.id} has invalid master product data:`, masterProduct);
+//             invalidItems.push({
+//               cart_item_id: item.id,
+//               variant_id: variant.id,
+//               product_id: masterProduct.id,
+//               error: "Master product missing required fields (id, name, or price)"
+//             });
+//             return;
+//           }
+
+//           // Calculate totals for valid items
+//           totalItems += item.quantity;
+//           
+//           // Correctly check for offers and use the right key
+//           const effectivePrice = masterProduct.offers && typeof masterProduct.offerPrice === 'number'
+//             ? masterProduct.offerPrice
+//             : masterProduct.price;
+//             
+//           estimatedTotal += effectivePrice * item.quantity;
+
+//           const locale = masterProduct.locale || 'default';
+//           if (!itemsByLocale[locale]) {
+//             itemsByLocale[locale] = [];
+//           }
+//           
+//           itemsByLocale[locale].push({
+//             cart_item_id: item.id,
+//             product_variant_id: item.product_variant.id,
+//             product_id: masterProduct.id,
+//             product_name: masterProduct.name,
+//             quantity: item.quantity,
+//             unit_price: masterProduct.price,
+//             effective_price: effectivePrice,
+//             has_offer: Boolean(masterProduct.offers && masterProduct.offerPrice),
+//             subtotal: effectivePrice * item.quantity
+//           });
+
+//           // Track unique products using the master product ID
+//           uniqueProducts.add(masterProduct.id);
+//           
+//         } catch (itemError) {
+//           console.error(`Error processing cart item ${item?.id || index}:`, itemError);
+//           invalidItems.push({
+//             cart_item_id: item?.id || `index_${index}`,
+//             error: `Processing error: ${itemError.message}`
+//           });
+//         }
+//       });
+
+//       const response = {
+//         success: true,
+//         message: invalidItems.length > 0 
+//           ? `Cart summary retrieved with ${invalidItems.length} invalid items found.`
+//           : "Cart summary retrieved successfully.",
+//         data: {
+//           total_items: totalItems, 
+//           total_unique_products: uniqueProducts.size, 
+//           estimated_total: Math.round(estimatedTotal * 100) / 100, 
+//           items_by_locale: itemsByLocale, 
+//           invalid_items: invalidItems 
+//         }
+//       };
+
+//       if (invalidItems.length > 0) {
+//         console.warn(`Found ${invalidItems.length} invalid cart items for user ${userId}:`, invalidItems);
+//       }
+
+//       return ctx.send(response);
+//       
+//     } catch (error) {
+//       console.error("Error in getCartSummary:", error);
+//       const customizedError = handleErrors(error);
+//       return ctx.send(
+//         { success: false, message: customizedError.message },
+//         handleStatusCode(error) || 500
+//       );
+//     }
+//   }
+// }));
+
+
+
+// // src/api/cart/controllers/cart.js
+
+// "use strict";
+
+// const { createCoreController } = require("@strapi/strapi").factories;
+// const { ValidationError, NotFoundError } = require("@strapi/utils").errors;
+
+// // Helper function to handle and format errors
+// const handleErrors = (error) => {
+//   console.error("Error occurred:", error);
+//   const errorMessage = String(error.message || "");
+
+//   if (error instanceof ValidationError) {
+//     return { message: errorMessage };
+//   }
+//   if (error instanceof NotFoundError) {
+//     return { message: errorMessage };
+//   }
+//   if (errorMessage.includes("out of stock or insufficient quantity")) {
+//     return { message: errorMessage };
+//   }
+//   if (errorMessage.includes("Product not found in cart for this user.")) {
+//     return { message: errorMessage };
+//   }
+//   if (errorMessage.includes("Product variant not found in cart for this user.")) {
+//     return { message: errorMessage };
+//   }
+//   if (errorMessage.includes("Cart is already empty for this user.")) {
+//     return { message: errorMessage };
+//   }
+//   if (errorMessage.includes("User does not have a cart yet.")) {
+//     return { message: errorMessage };
+//   }
+//   if (errorMessage.includes("product is currently not active")) {
+//     return { message: errorMessage };
+//   }
+//   if (errorMessage.includes("product variant is currently not active")) {
+//     return { message: errorMessage };
+//   }
+//   if (errorMessage.includes("Cannot read properties of undefined")) {
+//     return { message: "Invalid data structure encountered. Please refresh and try again." };
+//   }
+//   if (errorMessage.includes("User not authenticated")) {
+//     return { message: "User authentication required." };
+//   }
+//   if (errorMessage.includes("Invalid Product Variant ID")) {
+//     return { message: "Invalid product variant ID provided." };
+//   }
+//   if (errorMessage.includes("Product variant not found")) {
+//     return { message: "Product variant not found." };
+//   }
+//   return { message: "An unexpected error occurred." };
+// };
+
+// // Helper function to map error messages to status codes
+// const handleStatusCode = (error) => {
+//   if (error instanceof ValidationError) return 400;
+//   if (error instanceof NotFoundError) return 404;
+//   if (String(error.message || "").includes("out of stock or insufficient quantity")) {
+//     return 400;
+//   }
+//   if (String(error.message || "").includes("Product not found in cart for this user.")) {
+//     return 404;
+//   }
+//   if (String(error.message || "").includes("Product variant not found in cart for this user.")) {
+//     return 404;
+//   }
+//   if (String(error.message || "").includes("product variant is currently not active")) {
+//     return 400;
+//   }
+//   if (String(error.message || "").includes("User not authenticated")) {
+//     return 401;
+//   }
+//   if (String(error.message || "").includes("Invalid Product Variant ID")) {
+//     return 400;
+//   }
+//   if (String(error.message || "").includes("Product variant not found")) {
+//     return 404;
+//   }
+//   if (String(error.message || "").includes("Cannot read properties of undefined")) {
+//     return 500;
+//   }
+//   if (String(error.message || "").includes("Cart is already empty for this user.")) {
+//     return 200;
+//   }
+//   if (String(error.message || "").includes("User does not have a cart yet.")) {
+//     return 200;
+//   }
+//   return 500;
+// };
+
+// // Helper function to validate request body fields
+// const validateBodyRequiredFields = (body, fields) => {
+//   const missingFields = fields.filter(field => !body[field]);
+//   if (missingFields.length > 0) {
+//     throw new ValidationError(`Missing required fields: ${missingFields.join(', ')}`);
+//   }
+// };
+
+// /**
+//  * Helper to get a product variant and its master product dynamically.
+//  * This function is now the core of the polymorphic logic.
+//  */
+// const getProductVariantAndMaster = async (variantId, strapi) => {
+//   try {
+//     if (!variantId || isNaN(parseInt(variantId))) {
+//       throw new ValidationError("Invalid Product Variant ID provided.");
+//     }
+
+//     // Find the specific product variant, populating all three possible parent relations.
+//     const productVariant = await strapi.db.query("api::product-variant.product-variant").findOne({
+//       where: { id: variantId },
+//       populate: {
+//         product: {
+//           select: ["id", "name", "price", "offers", "offerPrice", "locale"],
+//           populate: { image: { select: ["url", "name", "alternativeText"] } },
+//         },
+//         contact_lens: {
+//           select: ["id", "name", "price", "offers", "offerPrice", "locale"],
+//           populate: { image: { select: ["url", "name", "alternativeText"] } },
+//         },
+//         accessory: {
+//           select: ["id", "name", "price", "offers", "offerPrice", "locale"],
+//           populate: { image: { select: ["url", "name", "alternativeText"] } },
+//         },
+//         frame_size: true,
+//         color: true,
+//       },
+//     });
+
+//     if (!productVariant) {
+//       throw new NotFoundError("Product variant not found.");
+//     }
+
+//     // Dynamically determine the master product based on which relation is populated.
+//     let masterProduct = null;
+//     let parentType = null;
+//     if (productVariant.product) {
+//       masterProduct = productVariant.product;
+//       parentType = 'product';
+//     } else if (productVariant.contact_lens) {
+//       masterProduct = productVariant.contact_lens;
+//       parentType = 'contact-lens';
+//     } else if (productVariant.accessory) {
+//       masterProduct = productVariant.accessory;
+//       parentType = 'accessory';
+//     }
+
+//     if (!masterProduct) {
+//       throw new ValidationError("Product variant is not linked to any master product.");
+//     }
+
+//     // Calculate combined stock based on all variants of the master product.
+//     const allVariants = await strapi.db.query("api::product-variant.product-variant").findMany({
+//       where: { [parentType]: masterProduct.id },
+//       select: ["id", "stock", "isActive", "inStock"]
+//     });
+
+//     if (!allVariants || allVariants.length === 0) {
+//       throw new ValidationError("No variants found for this product.");
+//     }
+
+//     const totalStock = allVariants.reduce((sum, variant) => {
+//       const stock = typeof variant.stock === 'number' ? variant.stock : 0;
+//       return sum + stock;
+//     }, 0);
+    
+//     const hasActiveVariant = allVariants.some(variant => 
+//       variant.isActive && variant.inStock && (variant.stock || 0) > 0
+//     );
+
+//     return {
+//       productVariant,
+//       masterProduct,
+//       totalStock,
+//       hasActiveVariant,
+//       allVariants, // Return all variants to calculate total quantity in cart
+//       parentType
+//     };
+//   } catch (error) {
+//     console.error("Error in getProductVariantAndMaster:", error);
+//     throw error;
+//   }
+// };
+
+// /**
+//  * Helper to get all cart items for a given master product and all its variants.
+//  * This is now more robust to handle any product type.
+//  */
+// const getAllCartItemsForProduct = async (userId, masterProductId, parentType, strapi) => {
+//   try {
+//     if (!userId || !masterProductId || !parentType) {
+//       throw new ValidationError("User ID, Master Product ID, and Parent Type are required.");
+//     }
+
+//     const allVariants = await strapi.db.query("api::product-variant.product-variant").findMany({
+//       where: { [parentType]: masterProductId },
+//       select: ["id"]
+//     });
+
+//     const allVariantIds = allVariants.map(variant => variant.id).filter(id => id);
+
+//     if (allVariantIds.length === 0) {
+//       return { cartItems: [], totalQuantityInCart: 0 };
+//     }
+
+//     const cartItems = await strapi.db.query("api::cart.cart").findMany({
+//       where: {
+//         user: userId,
+//         product_variant: { id: { $in: allVariantIds } }
+//       },
+//       populate: {
+//         product_variant: {
+//           select: ["id", "stock", "isActive", "inStock"]
+//         }
+//       }
+//     });
+    
+//     const validCartItems = cartItems.filter(item => 
+//       item && item.product_variant && typeof item.quantity === 'number'
+//     );
+
+//     const totalQuantityInCart = validCartItems.reduce((sum, item) => {
+//       return sum + (item.quantity || 0);
+//     }, 0);
+
+//     return {
+//       cartItems: validCartItems,
+//       totalQuantityInCart,
+//     };
+//   } catch (error) {
+//     console.error("Error in getAllCartItemsForProduct:", error);
+//     throw error;
+//   }
+// };
+
+// module.exports = createCoreController("api::cart.cart", ({ strapi }) => ({
+
+//   // MARK: GetCart
+//   async getMyCart(ctx) {
+//     try {
+//       // Get the user from the JWT token
+//       const user = ctx.state.user;
+//       if (!user) {
+//         return ctx.unauthorized("Authentication required.");
+//       }
+//       const userId = user.id;
+
+//       // Fetch cart items for the user, populating the necessary relations
+//       const cartItems = await strapi.db.query("api::cart.cart").findMany({
+//         where: { user: userId },
+//         populate: {
+//           product_variant: {
+//             populate: {
+//               product: {
+//                 select: ["id", "name", "price", "offers", "offerPrice", "locale"],
+//                 populate: {
+//                   image: { select: ["url", "name", "alternativeText"] },
+//                   localizations: { select: ["id", "locale"] },
+//                 },
+//               },
+//               contact_lens: {
+//                 select: ["id", "name", "price", "offers", "offerPrice", "locale"],
+//                 populate: {
+//                   image: { select: ["url", "name", "alternativeText"] },
+//                 },
+//               },
+//               accessory: {
+//                 select: ["id", "name", "price", "offers", "offerPrice", "locale"],
+//                 populate: {
+//                   image: { select: ["url", "name", "alternativeText"] },
+//                 },
+//               },
+//               color_picker: true,
+//               frame_size: true,
+//             },
+//           },
+//         },
+//       });
+
+//       // Handle the case where the cart is empty
+//       if (!cartItems || cartItems.length === 0) {
+//         return ctx.send({
+//           success: true,
+//           message: "User does not have a cart yet or cart is empty.",
+//           data: {
+//             cart_items: [],
+//             total_items: 0,
+//           }
+//         });
+//       }
+
+//       // Cache to store combined stock for each product to avoid redundant queries
+//       const productCombinedStockCache = new Map();
+
+//       // Format the data to match the desired output structure precisely
+//       const formattedCartItems = await Promise.all(cartItems.map(async (item) => {
+//         const variant = item.product_variant;
+//         if (!variant) {
+//           console.warn(`Cart item ${item.id} has missing variant data and will be skipped.`);
+//           return null;
+//         }
+
+//         // Dynamically determine the master product
+//         let masterProduct = null;
+//         let productType = null;
+//         if (variant.product) {
+//           masterProduct = variant.product;
+//           productType = 'product';
+//         } else if (variant.contact_lens) {
+//           masterProduct = variant.contact_lens;
+//           productType = 'contact-lens';
+//         } else if (variant.accessory) {
+//           masterProduct = variant.accessory;
+//           productType = 'accessory';
+//         }
+
+//         if (!masterProduct) {
+//           console.warn(`Variant ${variant.id} has no master product linked.`);
+//           return null;
+//         }
+
+//         let combinedStock = 0;
+//         // Check if combined stock for this product has already been calculated
+//         if (productCombinedStockCache.has(masterProduct.id)) {
+//           combinedStock = productCombinedStockCache.get(masterProduct.id);
+//         } else {
+//           // If not, fetch all variants for the master product and calculate the total stock
+//           const allProductVariants = await strapi.entityService.findMany(
+//             "api::product-variant.product-variant", {
+//               filters: {
+//                 [productType]: { id: masterProduct.id },
+//                 isActive: true,
+//                 stock: { $gt: 0 },
+//               },
+//               fields: ["stock"]
+//             });
+          
+//           combinedStock = allProductVariants.reduce((sum, v) => sum + v.stock, 0);
+//           productCombinedStockCache.set(masterProduct.id, combinedStock);
+//         }
+
+//         const productDetails = {
+//           ...masterProduct,
+//           offerPrice: masterProduct.offer_price, // Use 'offer_price' from the query
+//           combinedStock: combinedStock, // Add the newly calculated combined stock
+//           product_type: productType,
+//         };
+//         // Clean up the offer_price key to avoid redundancy
+//         delete productDetails.offer_price;
+
+//         const formattedVariant = {
+//           id: variant.id,
+//           createdAt: variant.createdAt,
+//           updatedAt: variant.updatedAt,
+//           stock: variant.stock, // This is the stock for the specific variant
+//           isActive: variant.isActive,
+//           inStock: variant.inStock,
+//           salesCount: variant.salesCount,
+//           color_picker: variant.color_picker,
+//           product: productDetails,
+//           frame_size: variant.frame_size,
+//         };
+
+//         return {
+//           id: item.id,
+//           quantity: item.quantity,
+//           createdAt: item.createdAt,
+//           updatedAt: item.updatedAt,
+//           product_variant: formattedVariant,
+//         };
+//       }));
+
+//       // Filter out any null values that were returned for invalid cart items
+//       const validFormattedCartItems = formattedCartItems.filter(item => item !== null);
+
+//       // Send the formatted response
+//       return ctx.send({
+//         success: true,
+//         message: "Cart retrieved successfully",
+//         data:{
+//           cart_items: validFormattedCartItems,
+//           total_items: validFormattedCartItems.length,
+//         }
+//       });
+//     } catch (err) {
+//       console.error("Error in getMyCart:", err);
+//       // In a production environment, you might want a more generic error message
+//       return ctx.internalServerError("An internal server error occurred.");
+//     }
+//   },
+//   // MARK: Add Product Variant to Cart
+//   async addProductToCart(ctx) {
+//     try {
+//       const { id: userId } = ctx.state.user;
+      
+//       if (!userId) {
+//         throw new ValidationError("User not authenticated.");
+//       }
+
+//       const requestBody = ctx.request.body || {};
+//       const { variantId, quantity } = requestBody.data || requestBody;
+
+//       validateBodyRequiredFields(requestBody.data || requestBody, ["variantId", "quantity"]);
+
+//       if (quantity === 0) {
+//         throw new ValidationError("Quantity cannot be zero.");
+//       }
+
+//       if (!Number.isInteger(quantity)) {
+//         throw new ValidationError("Quantity must be a whole number.");
+//       }
+
+//       const { productVariant, masterProduct, totalStock, hasActiveVariant, parentType } = await getProductVariantAndMaster(variantId, strapi);
+
+//       // Comprehensive validation checks
+//       if (!hasActiveVariant) {
+//         throw new ValidationError("This product variant is currently not active or out of stock.");
+//       }
+
+//       if (!productVariant.isActive || !productVariant.inStock || (productVariant.stock || 0) < 1) {
+//         throw new ValidationError("This specific product variant is currently not active or out of stock.");
+//       }
+      
+//       const { cartItems, totalQuantityInCart } = await getAllCartItemsForProduct(userId, masterProduct.id, parentType, strapi);
+      
+//       const currentCartEntry = cartItems.find(item => 
+//         item.product_variant && item.product_variant.id === parseInt(variantId)
+//       );
+//       const currentQuantityForThisVariant = currentCartEntry ? currentCartEntry.quantity : 0;
+      
+//       const newTotalQuantityAcrossAllVariants = totalQuantityInCart + quantity;
+//       const newQuantityForThisVariant = currentQuantityForThisVariant + quantity;
+      
+//       // Handle decrement logic
+//       if (quantity < 0) {
+//         if (!currentCartEntry) {
+//           throw new NotFoundError("Product variant not found in cart for this user to decrement.");
+//         }
+//         if (newQuantityForThisVariant < 0) {
+//           throw new ValidationError("Cannot decrement quantity below zero.");
+//         }
+//         if (newQuantityForThisVariant === 0) {
+//           await strapi.db.query("api::cart.cart").delete({
+//             where: { id: currentCartEntry.id }
+//           });
+//           return ctx.send({
+//             success: true,
+//             message: "Product quantity decreased to zero and removed from cart.",
+//             data: {
+//               product_id: masterProduct.id, 
+//               variant_id: parseInt(variantId), 
+//               user_id: userId
+//             }
+//           });
+//         }
+//       } 
+//       // Handle increment logic with comprehensive stock validation
+//       else {
+//         // Check combined stock across all variants
+//         if (newTotalQuantityAcrossAllVariants > totalStock) {
+//           const availableStock = Math.max(0, totalStock - totalQuantityInCart);
+//           throw new ValidationError(
+//             `Product ${masterProduct.name} has insufficient combined stock. Available: ${availableStock}, Requested: ${quantity}.`
+//           );
+//         }
+        
+//         // Check individual variant stock
+//         if (newQuantityForThisVariant > (productVariant.stock || 0)) {
+//           const availableForThisVariant = Math.max(0, (productVariant.stock || 0) - currentQuantityForThisVariant);
+//           throw new ValidationError(
+//             `This product variant has insufficient stock. Available: ${availableForThisVariant}, Requested: ${quantity}.`
+//           );
+//         }
+//       }
+      
+//       let updatedCartEntry;
+//       let message = "";
+      
+//       if (!currentCartEntry) {
+//         updatedCartEntry = await strapi.db.query("api::cart.cart").create({
+//           data: { 
+//             user: userId, 
+//             product_variant: parseInt(variantId), 
+//             quantity: quantity 
+//           },
+//           populate: { 
+//             product_variant: { 
+//               populate: {
+//                 product: {
+//                   select: ["id", "name", "price", "offers", "offerPrice"],
+//                   populate: { image: { select: ["url"] } }
+//                 },
+//                 contact_lens: {
+//                   select: ["id", "name", "price", "offers", "offerPrice"],
+//                   populate: { image: { select: ["url"] } }
+//                 },
+//                 accessory: {
+//                   select: ["id", "name", "price", "offers", "offerPrice"],
+//                   populate: { image: { select: ["url"] } }
+//                 },
+//                 color_picker: true,
+//               }
+//             } 
+//           }
+//         });
+//         message = "Product added to cart.";
+//       } else {
+//         updatedCartEntry = await strapi.db.query("api::cart.cart").update({
+//           where: { id: currentCartEntry.id },
+//           data: { quantity: newQuantityForThisVariant },
+//           populate: { 
+//             product_variant: { 
+//               populate: {
+//                 product: {
+//                   select: ["id", "name", "price", "offers", "offerPrice"],
+//                   populate: { image: { select: ["url"] } }
+//                 },
+//                 contact_len: {
+//                   select: ["id", "name", "price", "offers", "offerPrice"],
+//                   populate: { image: { select: ["url"] } }
+//                 },
+//                 accessory: {
+//                   select: ["id", "name", "price", "offers", "offerPrice"],
+//                   populate: { image: { select: ["url"] } }
+//                 },
+//                 color_picker: true,
+//               }
+//             } 
+//           }
+//         });
+//         message = quantity > 0 ? "Product quantity updated in cart." : "Product quantity decreased in cart.";
+//       }
+      
+//       // Re-fetch to get the most up-to-date cart info for the response
+//       const finalCartEntry = await strapi.db.query("api::cart.cart").findOne({
+//         where: { id: updatedCartEntry.id },
+//         populate: {
+//           product_variant: {
+//             populate: {
+//               product: true,
+//               contact_lens: true,
+//               accessory: true,
+//               color_picker: true,
+//             }
+//           }
+//         }
+//       });
+      
+//       let finalMasterProduct = null;
+//       if (finalCartEntry.product_variant.product) finalMasterProduct = finalCartEntry.product_variant.product;
+//       else if (finalCartEntry.product_variant.contact_len) finalMasterProduct = finalCartEntry.product_variant.contact_len;
+//       else if (finalCartEntry.product_variant.accessory) finalMasterProduct = finalCartEntry.product_variant.accessory;
+
+//       return ctx.send({
+//         success: true,
+//         message: message,
+//         data: {
+//           id: finalCartEntry.id,
+//           quantity: finalCartEntry.quantity,
+//           createdAt: finalCartEntry.createdAt,
+//           updatedAt: finalCartEntry.updatedAt,
+//           product_variant: {
+//             ...finalCartEntry.product_variant,
+//             stock: finalCartEntry.product_variant.stock,
+//             available_stock: finalCartEntry.product_variant.stock - finalCartEntry.quantity,
+//             product: {
+//               ...finalMasterProduct,
+//               offerPrice: finalMasterProduct.offerPrice
+//             },
+//           },
+//           combined_stock_total: totalStock,
+//           combined_stock_available: totalStock - newTotalQuantityAcrossAllVariants,
+//           total_quantity_in_cart_all_variants: newTotalQuantityAcrossAllVariants,
+//           is_combined_product: totalStock > (finalCartEntry.product_variant.stock || 0)
+//         }
+//       });
+//     } catch (error) {
+//       console.error("Error in addProductToCart:", error);
+//       const customizedError = handleErrors(error);
+//       return ctx.send(
+//         { success: false, message: customizedError.message },
+//         handleStatusCode(error) || 500
+//       );
+//     }
+//   },
+
+//   // MARK: Remove Product Variant From Cart
+//   async removeProductFromCart(ctx) {
+//     try {
+//       const { id: userId } = ctx.state.user;
+//       if (!userId) {
+//         throw new ValidationError("User not authenticated.");
+//       }
+
+//       const { variantId } = ctx.params;
+//       const parsedVariantId = parseInt(variantId, 10);
+
+//       if (isNaN(parsedVariantId)) {
+//         throw new ValidationError("Invalid Product Variant ID provided in URL. Must be a number.");
+//       }
+
+//       const cartEntry = await strapi.db.query("api::cart.cart").findOne({
+//         where: { 
+//           user: userId, 
+//           product_variant: { id: parsedVariantId } 
+//         }
+//       });
+
+//       if (!cartEntry) {
+//         throw new NotFoundError("Product variant not found in cart for this user.");
+//       }
+
+//       await strapi.db.query("api::cart.cart").delete({
+//         where: { id: cartEntry.id }
+//       });
+
+//       return ctx.send({
+//         success: true,
+//         message: "Product variant removed from cart.",
+//         data: {
+//           product_variant_id: parsedVariantId, 
+//           user_id: userId
+//         }
+//       });
+
+//     } catch (error) {
+//       console.error("Error in removeProductFromCart:", error);
+//       const customizedError = handleErrors(error);
+//       return ctx.send(
+//         { success: false, message: customizedError.message },
+//         handleStatusCode(error) || 500
+//       );
+//     }
+//   },
+
+//   // MARK: Clear entire cart
+//   async clearCart(ctx) {
+//     try {
+//       const { id: userId } = ctx.state.user;
+
+//       if (!userId) {
+//         throw new ValidationError("User not authenticated.");
+//       }
+
+//       const cartEntries = await strapi.db.query("api::cart.cart").findMany({
+//         where: { user: userId }
+//       });
+
+//       if (!cartEntries || cartEntries.length === 0) {
+//         return ctx.send({
+//           success: true,
+//           message: "Cart is already empty for this user.",
+//           data: {
+//             user_id: userId
+//           }
+//         });
+//       }
+
+//       await strapi.db.query("api::cart.cart").deleteMany({
+//         where: { user: userId }
+//       });
+
+//       return ctx.send({
+//         success: true,
+//         message: "Cart cleared successfully.",
+//         data: {
+//           user_id: userId,
+//           items_removed: cartEntries.length
+//         }
+//       });
+
+//     } catch (error) {
+//       console.error("Error in clearCart:", error);
+//       const customizedError = handleErrors(error);
+//       return ctx.send(
+//         { success: false, message: customizedError.message },
+//         handleStatusCode(error) || 500
+//       );
+//     }
+//   },
+
+//   // MARK: Get cart summary with combined stock info
+//   async getCartSummary(ctx) {
+//     try {
+//       const { id: userId } = ctx.state.user;
+
+//       if (!userId) {
+//         throw new ValidationError("User not authenticated.");
+//       }
+
+//       const cart = await strapi.db.query("api::cart.cart").findMany({
+//         where: { user: userId },
+//         populate: {
+//           product_variant: {
+//             select: ["id", "stock", "inStock", "isActive"],
+//             populate: {
+//               product: {
+//                 select: ["id", "name", "price", "offers", "offerPrice", "locale"],
+//               },
+//               contact_lens: {
+//                 select: ["id", "name", "price", "offers", "offerPrice", "locale"],
+//               },
+//               accessory: {
+//                 select: ["id", "name", "price", "offers", "offerPrice", "locale"],
+//               }
+//             }
+//           }
+//         }
+//       });
+
+//       if (!cart || cart.length === 0) {
+//         return ctx.send({
+//           success: true,
+//           message: "Cart is empty.",
+//           data: {
+//             total_items: 0,
+//             total_unique_products: 0,
+//             estimated_total: 0,
+//             items_by_locale: {},
+//             invalid_items: []
+//           }
+//         });
+//       }
+
+//       let totalItems = 0;
+//       let estimatedTotal = 0;
+//       const itemsByLocale = {};
+//       const uniqueProducts = new Set();
+//       const invalidItems = [];
+
+//       cart.forEach((item, index) => {
+//         try {
+//           // Validate cart item structure
+//           if (!item || typeof item.quantity !== 'number') {
+//             console.warn(`Invalid cart item at index ${index}:`, item);
+//             invalidItems.push({
+//               cart_item_id: item?.id || `index_${index}`,
+//               error: "Invalid cart item structure - missing or invalid quantity"
+//             });
+//             return;
+//           }
+
+//           const variant = item.product_variant;
+//           if (!variant) {
+//             console.warn(`Cart item ${item.id} missing product_variant:`, item);
+//             invalidItems.push({
+//               cart_item_id: item.id,
+//               error: "Product variant not found or not properly populated"
+//             });
+//             return;
+//           }
+
+//           // Dynamically get the master product
+//           let masterProduct;
+//           if (variant.product) {
+//             masterProduct = variant.product;
+//           } else if (variant.contact_lens) {
+//             masterProduct = variant.contact_lens;
+//           } else if (variant.accessory) {
+//             masterProduct = variant.accessory;
+//           }
+          
+//           if (!masterProduct) {
+//             console.warn(`Cart item ${item.id} has no master product linked:`, variant);
+//             invalidItems.push({
+//               cart_item_id: item.id,
+//               variant_id: variant.id,
+//               error: "Master product not found or not properly populated"
+//             });
+//             return;
+//           }
+          
+//           // Validate required product fields
+//           if (!masterProduct.id || !masterProduct.name || typeof masterProduct.price !== 'number') {
+//             console.warn(`Cart item ${item.id} has invalid master product data:`, masterProduct);
+//             invalidItems.push({
+//               cart_item_id: item.id,
+//               variant_id: variant.id,
+//               product_id: masterProduct.id,
+//               error: "Master product missing required fields (id, name, or price)"
+//             });
+//             return;
+//           }
+
+//           // Calculate totals for valid items
+//           totalItems += item.quantity;
+          
+//           const effectivePrice = masterProduct.offers && typeof masterProduct.offerPrice === 'number'
+//             ? masterProduct.offerPrice
+//             : masterProduct.price;
+            
+//           estimatedTotal += effectivePrice * item.quantity;
+
+//           const locale = masterProduct.locale || 'default';
+//           if (!itemsByLocale[locale]) {
+//             itemsByLocale[locale] = [];
+//           }
+          
+//           itemsByLocale[locale].push({
+//             cart_item_id: item.id,
+//             product_variant_id: item.product_variant.id,
+//             product_id: masterProduct.id,
+//             product_name: masterProduct.name,
+//             quantity: item.quantity,
+//             unit_price: masterProduct.price,
+//             effective_price: effectivePrice,
+//             has_offer: Boolean(masterProduct.offers && masterProduct.offerPrice),
+//             subtotal: effectivePrice * item.quantity
+//           });
+
+//           // Track unique products using the master product ID
+//           uniqueProducts.add(masterProduct.id);
+          
+//         } catch (itemError) {
+//           console.error(`Error processing cart item ${item?.id || index}:`, itemError);
+//           invalidItems.push({
+//             cart_item_id: item?.id || `index_${index}`,
+//             error: `Processing error: ${itemError.message}`
+//           });
+//         }
+//       });
+
+//       const response = {
+//         success: true,
+//         message: invalidItems.length > 0 
+//           ? `Cart summary retrieved with ${invalidItems.length} invalid items found.`
+//           : "Cart summary retrieved successfully.",
+//         data: {
+//           total_items: totalItems, 
+//           total_unique_products: uniqueProducts.size, 
+//           estimated_total: Math.round(estimatedTotal * 100) / 100, 
+//           items_by_locale: itemsByLocale, 
+//           invalid_items: invalidItems 
+//         }
+//       };
+
+//       if (invalidItems.length > 0) {
+//         console.warn(`Found ${invalidItems.length} invalid cart items for user ${userId}:`, invalidItems);
+//       }
+
+//       return ctx.send(response);
+      
+//     } catch (error) {
+//       console.error("Error in getCartSummary:", error);
+//       const customizedError = handleErrors(error);
+//       return ctx.send(
+//         { success: false, message: customizedError.message },
+//         handleStatusCode(error) || 500
+//       );
+//     }
+//   }
+// }));
 
 
 
