@@ -440,6 +440,11 @@ export interface ApiAccessoryAccessory extends Schema.CollectionType {
       'api::product-variant.product-variant'
     >;
     publishedAt: Attribute.DateTime;
+    reviews: Attribute.Relation<
+      'api::accessory.accessory',
+      'oneToMany',
+      'api::review.review'
+    >;
     type: Attribute.Enumeration<['cleaning-kit', 'case', 'strap']> &
       Attribute.SetPluginOptions<{
         i18n: {
@@ -524,6 +529,12 @@ export interface ApiAddressAddress extends Schema.CollectionType {
       'oneToMany',
       'api::address.address'
     >;
+    name: Attribute.String &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
     phone: Attribute.String &
       Attribute.CustomField<
         'plugin::strapi-phone-validator.phone',
@@ -1123,6 +1134,11 @@ export interface ApiContactLensContactLens extends Schema.CollectionType {
       'api::product-variant.product-variant'
     >;
     publishedAt: Attribute.DateTime;
+    reviews: Attribute.Relation<
+      'api::contact-lens.contact-lens',
+      'oneToMany',
+      'api::review.review'
+    >;
     type: Attribute.Enumeration<
       ['daily', 'weekly', 'monthly', 'toric', 'multifocal']
     > &
@@ -2113,10 +2129,20 @@ export interface ApiReviewReview extends Schema.CollectionType {
     draftAndPublish: true;
   };
   attributes: {
+    accessory: Attribute.Relation<
+      'api::review.review',
+      'manyToOne',
+      'api::accessory.accessory'
+    >;
     comment: Attribute.Text &
       Attribute.SetMinMaxLength<{
         maxLength: 500;
       }>;
+    contact_lens: Attribute.Relation<
+      'api::review.review',
+      'manyToOne',
+      'api::contact-lens.contact-lens'
+    >;
     createdAt: Attribute.DateTime;
     createdBy: Attribute.Relation<
       'api::review.review',

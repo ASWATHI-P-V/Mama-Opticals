@@ -1,12 +1,9 @@
-// // src/api/product/controllers/product.js
-
 "use strict";
 
 const { createCoreController } = require("@strapi/strapi").factories;
 const strapiUtils = require("@strapi/utils");
 const { ValidationError, NotFoundError } = strapiUtils.errors;
 const { sanitize } = require("@strapi/utils");
-const color = require("../../color/controllers/color");
 
 const parseIdsToArray = (input) => {
   if (input === undefined || input === null || input === "") {
@@ -126,6 +123,23 @@ async function ImageFile(file, width, height) {
   });
   return uploadedFile;
 }
+
+// Helper function to get an array of values from a query parameter
+const getArrayFromQueryParam = (param) => {
+  if (!param) return [];
+  if (Array.isArray(JSON.parse(param))) {
+    return JSON.parse(param);
+  }
+  if (typeof param === "string") {
+    // Updated to handle comma-separated strings correctly
+    return param
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+  }
+  return [String(param)];
+};
+
 //MARK:product create
 
 module.exports = createCoreController("api::product.product", ({ strapi }) => ({
@@ -487,36 +501,66 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
         filters.best_seller = query.best_seller.toLowerCase() === "true";
         delete query.best_seller;
       }
+
+      // Updated filtering logic for multiple values
       if (query.category) {
-        filters.category = { name: { $eqi: query.category } };
+        const categories = getArrayFromQueryParam(query.category);
+        if (categories.length > 0) {
+          filters.category = { id: { $in: categories } };
+        }
         delete query.category;
       }
       if (query.brands) {
-        filters.brands = { name: { $eqi: query.brands } };
+        const brands = getArrayFromQueryParam(query.brands);
+        // console.log("Brands filter array:", brands);
+        if (brands.length > 0) {
+          filters.brands = { id: { $in: brands } };
+        }
         delete query.brands;
       }
       if (query.frame_materials) {
-        filters.frame_materials = { name: { $eqi: query.frame_materials } };
+        const materials = getArrayFromQueryParam(query.frame_materials);
+        if (materials.length > 0) {
+          filters.frame_materials = { id: { $in: materials } };
+        }
         delete query.frame_materials;
       }
       if (query.frame_shapes) {
-        filters.frame_shapes = { name: { $eqi: query.frame_shapes } };
+        const shapes = getArrayFromQueryParam(query.frame_shapes);
+        if (shapes.length > 0) {
+          filters.frame_shapes = { id: { $in: shapes } };
+        }
         delete query.frame_shapes;
       }
       if (query.lens_types) {
-        filters.lens_types = { name: { $eqi: query.lens_types } };
+        const types = getArrayFromQueryParam(query.lens_types);
+        if (types.length > 0) {
+          filters.lens_types = { id: { $in: types } };
+        }
         delete query.lens_types;
       }
       if (query.lens_coatings) {
-        filters.lens_coatings = { name: { $eqi: query.lens_coatings } };
+        const coatings = getArrayFromQueryParam(query.lens_coatings);
+        if (coatings.length > 0) {
+          filters.lens_coatings = { id: { $in: coatings } };
+        }
         delete query.lens_coatings;
       }
       if (query.lens_thicknesses) {
-        filters.lens_thicknesses = { name: { $eqi: query.lens_thicknesses } };
+        // Filter logic for an array of lens thicknesses.
+        const thicknesses = getArrayFromQueryParam(query.lens_thicknesses);
+        if (thicknesses.length > 0) {
+          // Find products where the lens_thicknesses field's name is in the provided array.
+          // This assumes that the `lens_thicknesses` relation has a `name` field that is a string like "1.5".
+          filters.lens_thicknesses = { id: { $in: thicknesses } };
+        }
         delete query.lens_thicknesses;
       }
       if (query.frame_weights) {
-        filters.frame_weights = { name: { $eqi: query.frame_weights } };
+        const weights = getArrayFromQueryParam(query.frame_weights);
+        if (weights.length > 0) {
+          filters.frame_weights = { id: { $in: weights } };
+        }
         delete query.frame_weights;
       }
       if (query.rating_gte) {
@@ -555,23 +599,26 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
         delete query.stock_lte;
       }
       if (query.colors) {
-        filters.variants = {
-          ...filters.variants,
-          color: { name: { $eqi: query.colors } },
-        };
+        const colors = getArrayFromQueryParam(query.colors);
+        if (colors.length > 0) {
+          filters.variants = {
+            ...filters.variants,
+            color: { id: { $in: colors } },
+          };
+        }
         delete query.colors;
       }
       if (query.frame_sizes) {
-        filters.variants = {
-          ...filters.variants,
-          frame_size: { name: { $eqi: query.frame_sizes } },
-        };
+        const sizes = getArrayFromQueryParam(query.frame_sizes);
+        if (sizes.length > 0) {
+          filters.variants = {
+            ...filters.variants,
+            frame_size: { id: { $in: sizes } },
+          };
+        }
         delete query.frame_sizes;
       }
 
-
-
-       
       // --- 3. Sorting ---
       if (query._sort) {
         const sortParams = Array.isArray(query._sort)
@@ -714,9 +761,11 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
         })
       );
 
+     const message= sanitizedProducts.length > 0 ? "Products retrieved successfully." : "No products found matching the criteria.";
+
       return ctx.send({
         success: true,
-        message: "Products retrieved successfully.",
+        message: message,
         data: {
           products: sanitizedProducts,
           page: page,
@@ -731,6 +780,327 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
       return ctx.send({ success: false, message: customizedError.message });
     }
   },
+  // // MARK: Find all products
+  // async find(ctx) {
+  //   try {
+  //     const { query } = ctx;
+  //     const user = ctx.state.user;
+
+  //     let filters = {};
+  //     let sort = [];
+
+  //     const populate = {
+  //       image: true,
+  //       category: true,
+  //       lens_types: true,
+  //       lens_coatings: true,
+  //       frame_weights: true,
+  //       brands: true,
+  //       frame_materials: true,
+  //       frame_shapes: true,
+  //       lens_thicknesses: true,
+  //       reviews: true,
+  //       types: true,
+  //       best_seller: true,
+  //       variants: {
+  //         populate: {
+  //           color_picker: true,
+  //           frame_size: true,
+  //           color: true,
+  //         },
+  //       },
+  //       localizations: true,
+  //     };
+
+  //     // Extract locale from the query, defaulting to 'en' if not provided
+  //     const locale = query.locale || "en";
+  //     delete query.locale;
+
+  //     // --- 1. Search (using '_q' for fuzzy search across specified fields) ---
+  //     if (query._q) {
+  //       filters.$or = [
+  //         { name: { $containsi: query._q } },
+  //         { description: { $containsi: query._q } },
+  //         { variants: { color: { name: { $containsi: query._q } } } },
+  //         { brands: { name: { $containsi: query._q } } },
+  //         { frame_materials: { name: { $containsi: query._q } } },
+  //         { frame_shapes: { name: { $containsi: query._q } } },
+  //         { lens_types: { name: { $containsi: query._q } } },
+  //         { lens_coatings: { name: { $containsi: query._q } } },
+  //         { lens_thicknesses: { name: { $containsi: query._q } } },
+  //         { frame_weights: { name: { $containsi: query._q } } },
+  //       ];
+  //       delete query._q;
+  //     }
+
+  //     // --- 2. Filtering ---
+  //     if (query.price_gte) {
+  //       filters.price = { ...filters.price, $gte: parseFloat(query.price_gte) };
+  //       delete query.price_gte;
+  //     }
+  //     if (query.price_lte) {
+  //       filters.price = { ...filters.price, $lte: parseFloat(query.price_lte) };
+  //       delete query.price_lte;
+  //     }
+  //     if (query.offerPrice_gte) {
+  //       filters.offerPrice = {
+  //         ...filters.offerPrice,
+  //         $gte: parseFloat(query.offerPrice_gte),
+  //       };
+  //       delete query.offerPrice_gte;
+  //     }
+  //     if (query.offerPrice_lte) {
+  //       filters.offerPrice = {
+  //         ...filters.offerPrice,
+  //         $lte: parseFloat(query.offerPrice_lte),
+  //       };
+  //       delete query.offerPrice_lte;
+  //     }
+  //     if (query.best_seller !== undefined) {
+  //       filters.best_seller = query.best_seller.toLowerCase() === "true";
+  //       delete query.best_seller;
+  //     }
+  //     if (query.category) {
+  //       filters.category = { name: { $eqi: query.category } };
+  //       delete query.category;
+  //     }
+  //     if (query.brands) {
+  //       filters.brands = { name: { $eqi: query.brands } };
+  //       delete query.brands;
+  //     }
+  //     if (query.frame_materials) {
+  //       filters.frame_materials = { name: { $eqi: query.frame_materials } };
+  //       delete query.frame_materials;
+  //     }
+  //     if (query.frame_shapes) {
+  //       filters.frame_shapes = { name: { $eqi: query.frame_shapes } };
+  //       delete query.frame_shapes;
+  //     }
+  //     if (query.lens_types) {
+  //       filters.lens_types = { name: { $eqi: query.lens_types } };
+  //       delete query.lens_types;
+  //     }
+  //     if (query.lens_coatings) {
+  //       filters.lens_coatings = { name: { $eqi: query.lens_coatings } };
+  //       delete query.lens_coatings;
+  //     }
+  //     if (query.lens_thicknesses) {
+  //       filters.lens_thicknesses = { name: { $eqi: query.lens_thicknesses } };
+  //       delete query.lens_thicknesses;
+  //     }
+  //     if (query.frame_weights) {
+  //       filters.frame_weights = { name: { $eqi: query.frame_weights } };
+  //       delete query.frame_weights;
+  //     }
+  //     if (query.rating_gte) {
+  //       filters.average_rating = {
+  //         ...filters.average_rating,
+  //         $gte: parseFloat(query.rating_gte),
+  //       };
+  //       delete query.rating_gte;
+  //     }
+  //     if (query.rating_lte) {
+  //       filters.average_rating = {
+  //         ...filters.average_rating,
+  //         $lte: parseFloat(query.rating_lte),
+  //       };
+  //       delete query.rating_lte;
+  //     }
+  //     if (query.inStock !== undefined) {
+  //       filters.variants = {
+  //         ...filters.variants,
+  //         inStock: query.inStock.toLowerCase() === "true",
+  //       };
+  //       delete query.inStock;
+  //     }
+  //     if (query.stock_gte) {
+  //       filters.variants = {
+  //         ...filters.variants,
+  //         stock: { $gte: parseInt(query.stock_gte) },
+  //       };
+  //       delete query.stock_gte;
+  //     }
+  //     if (query.stock_lte) {
+  //       filters.variants = {
+  //         ...filters.variants,
+  //         stock: { $lte: parseInt(query.stock_lte) },
+  //       };
+  //       delete query.stock_lte;
+  //     }
+  //     if (query.colors) {
+  //       filters.variants = {
+  //         ...filters.variants,
+  //         color: { name: { $eqi: query.colors } },
+  //       };
+  //       delete query.colors;
+  //     }
+  //     if (query.frame_sizes) {
+  //       filters.variants = {
+  //         ...filters.variants,
+  //         frame_size: { name: { $eqi: query.frame_sizes } },
+  //       };
+  //       delete query.frame_sizes;
+  //     }
+
+  //     // --- 3. Sorting ---
+  //     if (query._sort) {
+  //       const sortParams = Array.isArray(query._sort)
+  //         ? query._sort
+  //         : [query._sort];
+  //       sort = sortParams.map((s) => {
+  //         const [field, order] = s.split(":");
+  //         if (field.includes(".")) {
+  //           const [relation, subField] = field.split(".");
+  //           return { [relation]: { [subField]: order.toLowerCase() } };
+  //         }
+  //         return { [field]: order.toLowerCase() };
+  //       });
+  //       delete query._sort;
+  //     } else {
+  //       sort.push({ createdAt: "desc" });
+  //     }
+
+  //     // --- 4. Pagination ---
+  //     const page = parseInt(query.page || 1);
+  //     const pageSize = parseInt(query.pageSize || 10);
+  //     const start = (page - 1) * pageSize;
+  //     const limit = pageSize;
+
+  //     const findOptions = {
+  //       filters: filters,
+  //       sort: sort,
+  //       populate: populate,
+  //       start: start,
+  //       limit: limit,
+  //       locale: locale,
+  //     };
+
+  //     const products = await strapi.entityService.findMany(
+  //       "api::product.product",
+  //       findOptions
+  //     );
+  //     const total = await strapi.entityService.count("api::product.product", {
+  //       filters: filters,
+  //       locale: locale,
+  //     });
+
+  //     // Fetch the authenticated user's wishlist IDs if a user exists
+  //     let wishlistedIds = new Set();
+  //     if (user && user.id) {
+  //       // Find all wishlisted products for the current user and populate their localizations
+  //       const userWishlistProducts = await strapi.db
+  //         .query("api::product.product")
+  //         .findMany({
+  //           where: { wishlistedByUsers: { id: user.id } },
+  //           select: ["id"],
+  //           populate: {
+  //             localizations: {
+  //               select: ["id"],
+  //             },
+  //           },
+  //         });
+
+  //       if (userWishlistProducts) {
+  //         userWishlistProducts.forEach((product) => {
+  //           // Add the main product ID to the set
+  //           wishlistedIds.add(product.id);
+
+  //           // Add all localized product IDs to the set
+  //           if (product.localizations && Array.isArray(product.localizations)) {
+  //             product.localizations.forEach((localization) => {
+  //               wishlistedIds.add(localization.id);
+  //             });
+  //           }
+  //         });
+  //       }
+  //     }
+
+  //     const productsWithOriginalId = products.map((product) => {
+  //       const originalProduct = product.localizations?.find(
+  //         (loc) => loc.locale === "en"
+  //       );
+  //       return {
+  //         ...product,
+  //         originalId: originalProduct ? originalProduct.id : product.id,
+  //       };
+  //     });
+
+  //     const sanitizedProducts = await Promise.all(
+  //       productsWithOriginalId.map(async (product) => {
+  //         const sanitized = await strapiUtils.sanitize.contentAPI.output(
+  //           product,
+  //           strapi.contentType("api::product.product")
+  //         );
+
+  //         // --- START: MODIFICATION TO MAKE BRAND A SINGLE OBJECT WITH ONLY ID AND NAME ---
+  //         if (
+  //           sanitized.brands &&
+  //           Array.isArray(sanitized.brands) &&
+  //           sanitized.brands.length > 0
+  //         ) {
+  //           const brand = sanitized.brands[0];
+  //           sanitized.brands = {
+  //             id: brand.id,
+  //             name: brand.name,
+  //           };
+  //         } else {
+  //           sanitized.brands = null;
+  //         }
+
+  //         // Extract unique colors and frame sizes from variants
+  //         const color_picker = new Set();
+  //         const frameSizes = new Set();
+  //         const color = new Set();
+
+  //         if (sanitized.variants && Array.isArray(sanitized.variants)) {
+  //           sanitized.variants.forEach((variant) => {
+  //             if (variant.color_picker) {
+  //               color_picker.add(JSON.stringify(variant.color_picker));
+  //             }
+  //             if (variant.frame_size) {
+  //               frameSizes.add(JSON.stringify(variant.frame_size));
+  //             }
+  //             if (variant.color) {
+  //               color.add(JSON.stringify(variant.color));
+  //             }
+  //           });
+  //         }
+
+  //         // Apply the transformations directly
+  //         const isWishlisted = wishlistedIds.has(sanitized.originalId);
+  //         const categoryAsList = sanitized.category ? [sanitized.category] : [];
+
+  //         // Return the new object with the extracted lists
+  //         return {
+  //           ...sanitized,
+  //           isWishlisted: isWishlisted,
+  //           color_picker: Array.from(color_picker).map((c) => JSON.parse(c)),
+  //           frame_sizes: Array.from(frameSizes).map((s) => JSON.parse(s)),
+  //           color: Array.from(color).map((c) => JSON.parse(c)),
+  //           category: categoryAsList,
+  //           average_rating: sanitized.average_rating,
+  //           reviewCount: sanitized.reviewCount,
+  //         };
+  //       })
+  //     );
+
+  //     return ctx.send({
+  //       success: true,
+  //       message: "Products retrieved successfully.",
+  //       data: {
+  //         products: sanitizedProducts,
+  //         page: page,
+  //         pageSize: limit,
+  //         pageCount: Math.ceil(total / limit),
+  //         total: total,
+  //       },
+  //     });
+  //   } catch (error) {
+  //     const customizedError = handleErrors(error);
+  //     ctx.status = handleStatusCode(error) || 500;
+  //     return ctx.send({ success: false, message: customizedError.message });
+  //   }
+  // },
 
   //MARK: Update product
   async update(ctx) {

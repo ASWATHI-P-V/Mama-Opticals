@@ -16,6 +16,14 @@
     }
   },
   "attributes": {
+    "name": {
+      "type": "string",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
     "phone": {
       "type": "customField",
       "customField": "plugin::strapi-phone-validator.phone",

@@ -73,6 +73,7 @@ module.exports = createCoreController("api::address.address", ({ strapi }) => ({
 
       // Validate required fields for address creation based on the UPDATED schema
       const requiredFields = [
+        "name",
         "address_name",
         "phone",
         "locality_name",

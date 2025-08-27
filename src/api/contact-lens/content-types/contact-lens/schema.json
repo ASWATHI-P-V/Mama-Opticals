@@ -97,6 +97,12 @@
       "relation": "oneToMany",
       "target": "api::product-variant.product-variant",
       "mappedBy": "contact_lens"
+    },
+    "reviews": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::review.review",
+      "mappedBy": "contact_lens"
     }
   }
 }

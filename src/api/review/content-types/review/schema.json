@@ -37,6 +37,18 @@
       "relation": "manyToOne",
       "target": "api::product.product",
       "inversedBy": "reviews"
+    },
+    "contact_lens": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::contact-lens.contact-lens",
+      "inversedBy": "reviews"
+    },
+    "accessory": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::accessory.accessory",
+      "inversedBy": "reviews"
     }
   }
 }
