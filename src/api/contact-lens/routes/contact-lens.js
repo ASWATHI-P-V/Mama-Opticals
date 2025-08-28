@@ -1,9 +1,22 @@
-'use strict';
-
-/**
- * contact-lens router
- */
-
-const { createCoreRouter } = require('@strapi/strapi').factories;
-
-module.exports = createCoreRouter('api::contact-lens.contact-lens');
+module.exports = {
+  routes: [
+    {
+      method: 'GET',
+      path: '/contact-lenses',
+      handler: 'contact-lens.find',
+      config: {
+        policies: [],
+        middlewares: [],
+      },
+    },
+    {
+      method: 'GET',
+      path: '/contact-lenses/:id',
+      handler: 'contact-lens.findOne',
+      config: {
+        policies: [],
+        middlewares: [],
+      },
+    },
+  ],
+};

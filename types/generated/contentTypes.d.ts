@@ -1073,12 +1073,11 @@ export interface ApiContactLensContactLens extends Schema.CollectionType {
     };
   };
   attributes: {
-    brand: Attribute.String &
-      Attribute.SetPluginOptions<{
-        i18n: {
-          localized: true;
-        };
-      }>;
+    brands: Attribute.Relation<
+      'api::contact-lens.contact-lens',
+      'oneToMany',
+      'api::contact.contact'
+    >;
     createdAt: Attribute.DateTime;
     createdBy: Attribute.Relation<
       'api::contact-lens.contact-lens',
@@ -1150,6 +1149,53 @@ export interface ApiContactLensContactLens extends Schema.CollectionType {
     updatedAt: Attribute.DateTime;
     updatedBy: Attribute.Relation<
       'api::contact-lens.contact-lens',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+  };
+}
+
+export interface ApiContactContact extends Schema.CollectionType {
+  collectionName: 'contacts';
+  info: {
+    description: '';
+    displayName: 'Contact Lens Brand';
+    pluralName: 'contacts';
+    singularName: 'contact';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  pluginOptions: {
+    i18n: {
+      localized: true;
+    };
+  };
+  attributes: {
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::contact.contact',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    locale: Attribute.String;
+    localizations: Attribute.Relation<
+      'api::contact.contact',
+      'oneToMany',
+      'api::contact.contact'
+    >;
+    name: Attribute.String &
+      Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    publishedAt: Attribute.DateTime;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::contact.contact',
       'oneToOne',
       'admin::user'
     > &
@@ -2834,6 +2880,7 @@ declare module '@strapi/types' {
       'api::chat-session.chat-session': ApiChatSessionChatSession;
       'api::color.color': ApiColorColor;
       'api::contact-lens.contact-lens': ApiContactLensContactLens;
+      'api::contact.contact': ApiContactContact;
       'api::customer-support.customer-support': ApiCustomerSupportCustomerSupport;
       'api::eye-care-category.eye-care-category': ApiEyeCareCategoryEyeCareCategory;
       'api::eye-power.eye-power': ApiEyePowerEyePower;
