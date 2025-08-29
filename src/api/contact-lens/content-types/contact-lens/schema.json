@@ -100,6 +100,11 @@
       "type": "relation",
       "relation": "oneToMany",
       "target": "api::contact.contact"
+    },
+    "wishlistedByUsers": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "plugin::users-permissions.user"
     }
   }
 }

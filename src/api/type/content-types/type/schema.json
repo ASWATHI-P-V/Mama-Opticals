@@ -36,6 +36,11 @@
           "localized": false
         }
       }
+    },
+    "eyeware_type": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::home.home"
     }
   }
 }

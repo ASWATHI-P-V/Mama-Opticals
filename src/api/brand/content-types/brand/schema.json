@@ -38,6 +38,12 @@
           "localized": false
         }
       }
+    },
+    "product": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::product.product",
+      "inversedBy": "brands"
     }
   }
 }

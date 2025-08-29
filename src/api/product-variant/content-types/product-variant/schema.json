@@ -73,6 +73,12 @@
       "relation": "manyToOne",
       "target": "api::accessory.accessory",
       "inversedBy": "product_variants"
+    },
+    "eyewear_type": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::home.home",
+      "inversedBy": "product_variants"
     }
   }
 }

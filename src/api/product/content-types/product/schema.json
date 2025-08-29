@@ -59,7 +59,6 @@
       "target": "api::category.category",
       "inversedBy": "products"
     },
-
     "wishlistedByUsers": {
       "type": "relation",
       "relation": "oneToMany",
@@ -88,7 +87,8 @@
         "i18n": {
           "localized": false
         }
-      }
+      },
+      "mappedBy": "product"
     },
     "frame_materials": {
       "type": "relation",

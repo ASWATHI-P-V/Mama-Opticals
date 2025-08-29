@@ -775,6 +775,11 @@ export interface ApiBrandBrand extends Schema.CollectionType {
           localized: true;
         };
       }>;
+    product: Attribute.Relation<
+      'api::brand.brand',
+      'manyToOne',
+      'api::product.product'
+    >;
     publishedAt: Attribute.DateTime;
     updatedAt: Attribute.DateTime;
     updatedBy: Attribute.Relation<
@@ -1153,6 +1158,11 @@ export interface ApiContactLensContactLens extends Schema.CollectionType {
       'admin::user'
     > &
       Attribute.Private;
+    wishlistedByUsers: Attribute.Relation<
+      'api::contact-lens.contact-lens',
+      'oneToMany',
+      'plugin::users-permissions.user'
+    >;
   };
 }
 
@@ -1575,6 +1585,34 @@ export interface ApiFrameWeightFrameWeight extends Schema.CollectionType {
   };
 }
 
+export interface ApiHomeHome extends Schema.CollectionType {
+  collectionName: 'homes';
+  info: {
+    description: '';
+    displayName: 'Eyewear Type';
+    pluralName: 'homes';
+    singularName: 'home';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<'api::home.home', 'oneToOne', 'admin::user'> &
+      Attribute.Private;
+    name: Attribute.String;
+    product_variants: Attribute.Relation<
+      'api::home.home',
+      'oneToMany',
+      'api::product-variant.product-variant'
+    >;
+    publishedAt: Attribute.DateTime;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<'api::home.home', 'oneToOne', 'admin::user'> &
+      Attribute.Private;
+  };
+}
+
 export interface ApiLensCoatingLensCoating extends Schema.CollectionType {
   collectionName: 'lens_coatings';
   info: {
@@ -1958,6 +1996,11 @@ export interface ApiProductVariantProductVariant extends Schema.CollectionType {
       'admin::user'
     > &
       Attribute.Private;
+    eyewear_type: Attribute.Relation<
+      'api::product-variant.product-variant',
+      'manyToOne',
+      'api::home.home'
+    >;
     frame_size: Attribute.Relation<
       'api::product-variant.product-variant',
       'manyToOne',
@@ -2276,6 +2319,11 @@ export interface ApiTypeType extends Schema.CollectionType {
     createdAt: Attribute.DateTime;
     createdBy: Attribute.Relation<'api::type.type', 'oneToOne', 'admin::user'> &
       Attribute.Private;
+    eyeware_type: Attribute.Relation<
+      'api::type.type',
+      'oneToOne',
+      'api::home.home'
+    >;
     image: Attribute.Media<'images'> &
       Attribute.SetPluginOptions<{
         i18n: {
@@ -2888,6 +2936,7 @@ declare module '@strapi/types' {
       'api::frame-shape.frame-shape': ApiFrameShapeFrameShape;
       'api::frame-size.frame-size': ApiFrameSizeFrameSize;
       'api::frame-weight.frame-weight': ApiFrameWeightFrameWeight;
+      'api::home.home': ApiHomeHome;
       'api::lens-coating.lens-coating': ApiLensCoatingLensCoating;
       'api::lens-thickness.lens-thickness': ApiLensThicknessLensThickness;
       'api::lens-type.lens-type': ApiLensTypeLensType;
