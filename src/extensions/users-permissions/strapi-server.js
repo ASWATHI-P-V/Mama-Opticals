@@ -24,94 +24,191 @@ const {
 
 const unverifiedUsers = new Map();
 
+
+
 module.exports = (plugin) => {
   //MARK: Register Method
   plugin.controllers.auth.register = async (ctx) => {
-    try {
-      const { body, files } = ctx.request;
+  try {
+    const { body, files } = ctx.request;
 
-      // All original data validations are preserved
-      validateBodyRequiredFields(body, [
-        "name",
-        "phone",
-        "email",
-        "dateOfBirth",
-        "gender",
-        "password",
-        "confirmPassword",
-      ]);
+    // All original data validations are preserved
+    validateBodyRequiredFields(body, [
+      "name",
+      "phone",
+      "email",
+      "dateOfBirth",
+      "gender",
+      "password",
+      "confirmPassword",
+    ]);
 
-      if (body.password !== body.confirmPassword) {
-        throw new ValidationError(
-          "Password and Confirm Password do not match."
-        );
-      }
-
-      if (!isPhoneValid(body?.phone)) {
-        throw new ValidationError("Invalid phone number");
-      }
-
-      // Check if a confirmed user already exists with this email or phone
-      const existingUser = await strapi.entityService.findMany(
-        "plugin::users-permissions.user",
-        {
-          filters: {
-            $or: [{ email: body.email }, { phone: body.phone }],
-          },
-        }
-      );
-
-      if (existingUser && existingUser.length > 0) {
-        throw new ValidationError(
-          "User with this email or phone already exists."
-        );
-      }
-
-      const otp = await generateOTP();
-      const otpExpiryTime = new Date(new Date().getTime() + 2.5 * 60000);
-
-      // Store user details, OTP, and expiry time in a temporary in-memory map.
-      unverifiedUsers.set(body.email, {
-        name: body?.name,
-        phone: body?.phone,
-        email: body?.email,
-        dateOfBirth: body?.dateOfBirth,
-        gender: body?.gender,
-        password: body.password,
-        otp: otp,
-        otpExpiryTime: otpExpiryTime,
-        profileImage: files?.profileImage,
-      });
-
-      // Send OTP to the user.
-      if (body?.email) {
-        await emailVerifyOtp(otp, body.email);
-      }
-      if (body?.phone) {
-        await smsVerifyOtp(otp, body.phone);
-      }
-
-      return ctx.send({
-        success: true,
-        message:
-          "OTP has been sent to your email and phone for verification. Please verify to complete your registration.",
-        data: {
-          email: body.email,
-          phone: body.phone,
-          otp: otp,
-        },
-      });
-    } catch (error) {
-      const customizedError = handleErrors(error);
-      return ctx.send(
-        {
-          success: false,
-          message: customizedError.message,
-        },
-        handleStatusCode(error) || 500
+    if (body.password !== body.confirmPassword) {
+      throw new ValidationError(
+        "Password and Confirm Password do not match."
       );
     }
-  };
+
+    if (!isPhoneValid(body?.phone)) {
+      throw new ValidationError("Invalid phone number");
+    }
+
+    // Check if a confirmed user already exists with this email or phone
+    const existingUser = await strapi.entityService.findMany(
+      "plugin::users-permissions.user",
+      {
+        filters: {
+          $or: [{ email: body.email }, { phone: body.phone }],
+        },
+      }
+    );
+
+    if (existingUser && existingUser.length > 0) {
+      throw new ValidationError(
+        "User with this email or phone already exists."
+      );
+    }
+
+    const otp = await generateOTP();
+    const otpExpiryTime = new Date(new Date().getTime() + 2.5 * 60000);
+
+    // Build temp user data object
+    const tempUserData = {
+      name: body?.name,
+      phone: body?.phone,
+      email: body?.email,
+      dateOfBirth: body?.dateOfBirth,
+      gender: body?.gender,
+      password: body.password,
+      otp: otp,
+      otpExpiryTime: otpExpiryTime,
+      profileImage: files?.profileImage,
+    };
+
+    // Store user details, OTP, and expiry time in a temporary in-memory map
+    if (body.email) {
+      unverifiedUsers.set(body.email, tempUserData);
+    }
+    if (body.phone) {
+      unverifiedUsers.set(body.phone, tempUserData);
+    }
+
+    // Send OTP to the user
+    if (body?.email) {
+      await emailVerifyOtp(otp, body.email);
+    }
+    if (body?.phone) {
+      await smsVerifyOtp(otp, body.phone);
+    }
+
+    return ctx.send({
+      success: true,
+      message:
+        "OTP has been sent to your email and phone for verification. Please verify to complete your registration.",
+      data: {
+        email: body.email,
+        phone: body.phone,
+        otp: otp, // ⚠️ remove this in production
+      },
+    });
+  } catch (error) {
+    const customizedError = handleErrors(error);
+    return ctx.send(
+      {
+        success: false,
+        message: customizedError.message,
+      },
+      handleStatusCode(error) || 500
+    );
+  }
+};
+
+//   plugin.controllers.auth.register = async (ctx) => {
+//     try {
+//       const { body, files } = ctx.request;
+
+//       // All original data validations are preserved
+//       validateBodyRequiredFields(body, [
+//         "name",
+//         "phone",
+//         "email",
+//         "dateOfBirth",
+//         "gender",
+//         "password",
+//         "confirmPassword",
+//       ]);
+
+//       if (body.password !== body.confirmPassword) {
+//         throw new ValidationError(
+//           "Password and Confirm Password do not match."
+//         );
+//       }
+
+//       if (!isPhoneValid(body?.phone)) {
+//         throw new ValidationError("Invalid phone number");
+//       }
+
+//       // Check if a confirmed user already exists with this email or phone
+//       const existingUser = await strapi.entityService.findMany(
+//         "plugin::users-permissions.user",
+//         {
+//           filters: {
+//             $or: [{ email: body.email }, { phone: body.phone }],
+//           },
+//         }
+//       );
+
+//       if (existingUser && existingUser.length > 0) {
+//         throw new ValidationError(
+//           "User with this email or phone already exists."
+//         );
+//       }
+
+//       const otp = await generateOTP();
+//       const otpExpiryTime = new Date(new Date().getTime() + 2.5 * 60000);
+
+//       // Store user details, OTP, and expiry time in a temporary in-memory map.
+//       unverifiedUsers.set(body.email, {
+//         name: body?.name,
+//         phone: body?.phone,
+//         email: body?.email,
+//         dateOfBirth: body?.dateOfBirth,
+//         gender: body?.gender,
+//         password: body.password,
+//         otp: otp,
+//         otpExpiryTime: otpExpiryTime,
+//         profileImage: files?.profileImage,
+//       });
+
+//       // Send OTP to the user.
+//       if (body?.email) {
+//         await emailVerifyOtp(otp, body.email);
+//       }
+//       if (body?.phone) {
+//         await smsVerifyOtp(otp, body.phone);
+//       }
+
+//       return ctx.send({
+//         success: true,
+//         message:
+//           "OTP has been sent to your email and phone for verification. Please verify to complete your registration.",
+//         data: {
+//           email: body.email,
+//           phone: body.phone,
+//           otp: otp,
+//         },
+//       });
+//     } catch (error) {
+//       const customizedError = handleErrors(error);
+//       return ctx.send(
+//         {
+//           success: false,
+//           message: customizedError.message,
+//         },
+//         handleStatusCode(error) || 500
+//       );
+//     }
+//   };
 
   //MARK:register otp
   plugin.controllers.auth.verifyOtp = async (ctx) => {

@@ -1,7 +1,9 @@
 "use strict";
 
 const { createCoreController } = require("@strapi/strapi").factories;
-const { ValidationError, ForbiddenError } = require("@strapi/utils").errors;
+const strapiUtils = require("@strapi/utils");
+const { ValidationError, ForbiddenError } = strapiUtils.errors;
+const { sanitize } = require("@strapi/utils");
 
 /**
  * Helper function to handle potential errors and return a clean error message.
@@ -75,6 +77,7 @@ const defaultPopulate = {
     populate: {
       color_picker: true,
       color: { fields: ["id", "name"] },
+      eyewear_type: true,
     },
   },
   images: true, // Populates all fields for the media type
@@ -83,12 +86,11 @@ const defaultPopulate = {
 module.exports = createCoreController(
   "api::accessory.accessory",
   ({ strapi }) => ({
-    /**
-     * List all accessories with search, filters, sorting, and pagination.
-     */
+    //MARK:find
     async find(ctx) {
       try {
         const { query } = ctx;
+        const user = ctx.state.user;
         let filters = {};
         let sort = [];
 
@@ -149,6 +151,25 @@ module.exports = createCoreController(
           delete query.price_lte;
         }
 
+        // Filter for accessories with a review key.
+        if (query.isreviewkey !== undefined) {
+          if (query.isreviewkey === "true") {
+            filters.review_key = { $not: null };
+          } else if (query.isreviewkey === "false") {
+            filters.review_key = { $null: true };
+          }
+          delete query.isreviewkey;
+        }
+
+        // Filter by eyeware type.
+        if (query.eyeware_types) {
+          const eyewareTypes = getArrayFromQueryParam(query.eyeware_types);
+          if (eyewareTypes.length > 0) {
+            filters.eyeware_type = { $in: eyewareTypes };
+          }
+          delete query.eyeware_types;
+        }
+
         // --- 3. Sorting ---
         if (query.sort) {
           const sortParams = Array.isArray(query.sort)
@@ -188,15 +209,71 @@ module.exports = createCoreController(
           { filters: filters }
         );
 
+        let wishlistedIds = new Set();
+        if (user && user.id) {
+          const userWishlistProducts = await strapi.db
+            .query("api::accessory.accessory")
+            .findMany({
+              where: { wishlistedByUsers: { id: user.id } },
+              select: ["id"],
+            });
+          if (userWishlistProducts) {
+            userWishlistProducts.forEach((accessory) => {
+              wishlistedIds.add(accessory.id);
+            });
+          }
+        }
+
+        const sanitizedAccessories = await Promise.all(
+          accessories.map(async (accessory) => {
+            const sanitized = await strapiUtils.sanitize.contentAPI.output(
+              accessory,
+              strapi.contentType("api::accessory.accessory")
+            );
+
+            // Check if the current user has reviewed this product
+            let isReviewed = false;
+            if (
+              user &&
+              user.id &&
+              sanitized.reviews &&
+              Array.isArray(sanitized.reviews)
+            ) {
+              isReviewed = sanitized.reviews.some(
+                (review) => review.user && review.user.id === user.id
+              );
+            }
+            
+            // Add the new eyeware_type key from the first product variant
+            if (
+                sanitized.product_variants &&
+                sanitized.product_variants.length > 0 &&
+                sanitized.product_variants[0].eyewear_type &&
+                sanitized.product_variants[0].eyewear_type.name
+            ) {
+                sanitized.eyewear_type = sanitized.product_variants[0].eyewear_type.name;
+            } else {
+                sanitized.eyewear_type = null;
+            }
+
+            const isWishlisted = wishlistedIds.has(sanitized.id);
+
+            return {
+              ...sanitized,
+              isWishlisted,
+              isReviewed,
+            };
+          })
+        );
+
         return ctx.send({
           success: true,
           message:
-            accessories.length > 0
+            sanitizedAccessories.length > 0
               ? "Accessories retrieved successfully."
               : "No accessories found matching the criteria.",
-          data: 
-          {
-            accessories,
+          data: {
+            products: sanitizedAccessories,
             page: page,
             pageSize: pageSize,
             pageCount: Math.ceil(total / pageSize),
@@ -213,12 +290,11 @@ module.exports = createCoreController(
       }
     },
 
-    /**
-     * Get a single accessory by ID with full population.
-     */
+   //MARK:findone
     async findOne(ctx) {
       try {
         const { id: accessoryId } = ctx.params;
+        const user = ctx.state.user;
         const accessory = await strapi.entityService.findOne(
           "api::accessory.accessory",
           accessoryId,
@@ -234,11 +310,60 @@ module.exports = createCoreController(
             message: "Accessory not found.",
           });
         }
+        
+        const sanitizedAccessory = await strapiUtils.sanitize.contentAPI.output(
+          accessory,
+          strapi.contentType("api::accessory.accessory")
+        );
+
+        // Check if the current user has wishlisted this product
+        let isWishlisted = false;
+        if (user && user.id) {
+          const wishlistCheck = await strapi.db
+            .query("api::accessory.accessory")
+            .findOne({
+              where: { id: accessoryId, wishlistedByUsers: { id: user.id } },
+              select: ["id"],
+            });
+          isWishlisted = !!wishlistCheck;
+        }
+
+        // Check if the current user has reviewed this product
+        let isReviewed = false;
+        if (
+          user &&
+          user.id &&
+          sanitizedAccessory.reviews &&
+          Array.isArray(sanitizedAccessory.reviews)
+        ) {
+          isReviewed = sanitizedAccessory.reviews.some(
+            (review) => review.user && review.user.id === user.id
+          );
+        }
+
+        // Add the new eyeware_type key from the first product variant
+        if (
+            sanitizedAccessory.product_variants &&
+            sanitizedAccessory.product_variants.length > 0 &&
+            sanitizedAccessory.product_variants[0].eyewear_type &&
+            sanitizedAccessory.product_variants[0].eyewear_type.name
+        ) {
+            sanitizedAccessory.eyewear_type =
+                sanitizedAccessory.product_variants[0].eyewear_type.name;
+        } else {
+            sanitizedAccessory.eyewear_type = null;
+        }
+
+        const finalAccessory = {
+          ...sanitizedAccessory,
+          isWishlisted,
+          isReviewed,
+        };
 
         return ctx.send({
           success: true,
           message: "Accessory retrieved successfully.",
-          data: accessory,
+          data: finalAccessory,
         });
       } catch (error) {
         const customizedError = handleErrors(error);
@@ -247,6 +372,266 @@ module.exports = createCoreController(
           success: false,
           message: customizedError.message,
         });
+      }
+    },
+    // MARK: Find similar accessories by an accessory ID
+    async findSimilar(ctx) {
+      try {
+        const { id } = ctx.params;
+        const user = ctx.state.user;
+
+        // Step 1: Find the original accessory by its ID and populate relevant fields
+        const originalAccessory = await strapi.entityService.findOne(
+          "api::accessory.accessory",
+          id,
+          {
+            populate: ["brands", "category", "localizations"],
+          }
+        );
+
+        if (!originalAccessory) {
+          throw new NotFoundError("Accessory not found.");
+        }
+
+        // Step 2: Extract relevant IDs and attributes for filtering
+        const brandsIds = originalAccessory.brands?.map((brand) => brand.id);
+        const categoryId = originalAccessory.category?.id;
+
+        // Step 3: Build the dynamic filter
+        const filters = {
+          $and: [
+            {
+              id: {
+                $ne: id, // Exclude the original accessory
+              },
+            },
+            {
+              $or: [],
+            },
+          ],
+        };
+
+        if (brandsIds && brandsIds.length > 0) {
+          filters.$and[1].$or.push({
+            brands: {
+              id: {
+                $in: brandsIds,
+              },
+            },
+          });
+        }
+        if (categoryId) {
+          filters.$and[1].$or.push({
+            category: {
+              id: categoryId,
+            },
+          });
+        }
+
+        // If no filters can be applied, return an empty array
+        if (filters.$and[1].$or.length === 0) {
+          return ctx.send({
+            success: true,
+            message: "No similar accessories found.",
+            data: [],
+          });
+        }
+
+        // --- WISH LIST: Fetch the authenticated user's wishlist IDs including localizations ---
+        let wishlistedIds = new Set();
+        if (user && user.id) {
+          const userWishlistAccessories = await strapi.db
+            .query("api::accessory.accessory")
+            .findMany({
+              where: {
+                wishlistedByUsers: {
+                  id: user.id,
+                },
+              },
+              select: ["id"],
+              populate: {
+                localizations: {
+                  select: ["id"],
+                },
+              },
+            });
+
+          if (userWishlistAccessories) {
+            userWishlistAccessories.forEach((accessory) => {
+              // Add the main accessory ID to the set
+              wishlistedIds.add(accessory.id);
+
+              // Add all localized accessory IDs to the set
+              if (accessory.localizations && Array.isArray(accessory.localizations)) {
+                accessory.localizations.forEach((localization) => {
+                  wishlistedIds.add(localization.id);
+                });
+              }
+            });
+          }
+        }
+
+        // Step 4: Find similar accessories based on the dynamic filter
+        const similarAccessories = await strapi.entityService.findMany(
+          "api::accessory.accessory",
+          {
+            filters: filters,
+            populate: defaultPopulate,
+            limit: 10, // You can adjust the limit
+          }
+        );
+
+        // Step 5: Sanitize and format the response with the wishlist status
+        const sanitizedAccessories = similarAccessories.map((accessory) => {
+          // Determine if the accessory is wishlisted
+          const isWishlisted = wishlistedIds.has(accessory.id);
+
+          // Return the new object with the wishlist status
+          return {
+            ...accessory,
+            isWishlisted: isWishlisted,
+          };
+        });
+
+        // Step 6: Send the final response
+        return ctx.send({
+          success: true,
+          message: "Similar accessories retrieved successfully.",
+          data: sanitizedAccessories,
+        });
+      } catch (error) {
+        const customizedError = handleErrors(error);
+        ctx.status = handleStatusCode(error);
+        return ctx.send({
+          success: false,
+          message: customizedError.message,
+        });
+      }
+    },
+
+    // MARK: Toggle Wishlist + Return Updated Wishlist
+    async toggleWishlist(ctx) {
+      try {
+        const { id: userId } = ctx.state.user;
+        const { accessoryId } = ctx.params;
+
+        // 1. Find accessory with wishlistedByUsers
+        const accessory = await strapi.entityService.findOne(
+          "api::accessory.accessory",
+          accessoryId,
+          { populate: ["wishlistedByUsers"] }
+        );
+
+        if (!accessory) {
+          throw new NotFoundError("Accessory not found.");
+        }
+
+        const isWishlisted = accessory.wishlistedByUsers.some(
+          (user) => user.id === userId
+        );
+
+        let updatedWishlistUsers;
+        let message;
+
+        if (isWishlisted) {
+          // Remove from wishlist
+          updatedWishlistUsers = accessory.wishlistedByUsers
+            .filter((u) => u.id !== userId)
+            .map((u) => u.id);
+          message = "Accessory removed from wishlist.";
+        } else {
+          // Add to wishlist
+          updatedWishlistUsers = [
+            ...accessory.wishlistedByUsers.map((u) => u.id),
+            userId,
+          ];
+          message = "Accessory added to wishlist.";
+        }
+
+        // 2. Update wishlist relation
+        await strapi.entityService.update(
+          "api::accessory.accessory",
+          accessoryId,
+          {
+            data: { wishlistedByUsers: updatedWishlistUsers },
+          }
+        );
+
+        // 3. Get updated wishlist accessories for the current user
+        const wishlistedAccessories = await strapi.entityService.findMany(
+          "api::accessory.accessory",
+          {
+            filters: { wishlistedByUsers: userId },
+            populate: {
+              image: {
+                fields: ["url", "name", "alternativeText"],
+              },
+              reviews: {
+                fields: ["rating", "comment", "createdAt"],
+                populate: { user: { fields: ["name"] } },
+              },
+            },
+            sort: [{ createdAt: "desc" }],
+          }
+        );
+
+        return ctx.send({
+          success: true,
+          message,
+          data: {
+            accessory_id: accessoryId,
+            isWishlisted: !isWishlisted,
+            wishlist: {
+              accessories: wishlistedAccessories,
+              total_items_in_wishlist: wishlistedAccessories.length,
+            },
+          },
+        });
+      } catch (error) {
+        const customizedError = handleErrors(error);
+        return ctx.send(
+          { success: false, message: customizedError.message },
+          handleStatusCode(error) || 500
+        );
+      }
+    },
+
+    // GET /api/accessories/my-wishlist
+    async getMyWishlist(ctx) {
+      try {
+        const { id: userId } = ctx.state.user;
+
+        const wishlistedAccessories = await strapi.entityService.findMany(
+          "api::accessory.accessory",
+          {
+            filters: {
+              wishlistedByUsers: userId, // Only accessories where current user is in wishlist
+            },
+            populate: {
+              image: { fields: ["url", "name", "alternativeText"] },
+              reviews: {
+                fields: ["rating", "comment", "createdAt"],
+                populate: { user: { fields: ["name"] } },
+              },
+            },
+            sort: [{ createdAt: "desc" }],
+          }
+        );
+
+        return ctx.send({
+          success: true,
+          message: "Wishlist retrieved successfully.",
+          data: {
+            accessories: wishlistedAccessories,
+            total_items_in_wishlist: wishlistedAccessories.length,
+          },
+        });
+      } catch (error) {
+        const customizedError = handleErrors(error);
+        return ctx.send(
+          { success: false, message: customizedError.message },
+          handleStatusCode(error) || 500
+        );
       }
     },
   })

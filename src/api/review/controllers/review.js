@@ -5,9 +5,9 @@ const { ValidationError, ForbiddenError } = require("@strapi/utils").errors;
 
 const defaultPopulate = {
   user: { fields: ["id", "name", "email"] },
-  product: { fields: ["id", "name", "price"] },
-  contact_lens: { fields: ["id", "name"] },
-  accessory: { fields: ["id", "name"] },
+  // product: { fields: ["id", "name", "price"] },
+  // contact_lens: { fields: ["id", "name"] },
+  // accessory: { fields: ["id", "name"] },
 };
 
 const handleErrors = (error) => {
@@ -206,26 +206,34 @@ module.exports = createCoreController("api::review.review", ({ strapi }) => ({
   },
 
   // Find reviews by item ID
+  // Default find and findOne methods are inherited
   async find(ctx) {
-    const { item_id, item_type } = ctx.query;
-    
-    let reviews = [];
+    const { product, contactLens, accessory } = ctx.query;
 
-    if (item_id && item_type) {
-      const targetItem = itemMap.find(item => item.key === item_type);
-      if (targetItem) {
-        reviews = await strapi.entityService.findMany("api::review.review", {
-          filters: { [item_type]: item_id },
-          populate: defaultPopulate,
-        });
-      }
+    let reviews;
+
+    // Build the query based on the provided IDs
+    if (product) {
+      reviews = await strapi.entityService.findMany("api::review.review", {
+        filters: { product: product },
+        populate: defaultPopulate,
+      });
+    } else if (contactLens) {
+      reviews = await strapi.entityService.findMany("api::review.review", {
+        filters: { contact_lens: contactLens },
+        populate: defaultPopulate,
+      });
+    } else if (accessory) {
+      reviews = await strapi.entityService.findMany("api::review.review", {
+        filters: { accessory: accessory },
+        populate: defaultPopulate,
+      });
     } else {
-      // If no specific item ID is provided, return all reviews
+      // If no specific product ID is provided, return all reviews
       reviews = await strapi.entityService.findMany("api::review.review", {
         populate: defaultPopulate,
       });
     }
-    
     return ctx.send({
       success: true,
       message: "Reviews fetched successfully.",
@@ -247,6 +255,47 @@ module.exports = createCoreController("api::review.review", ({ strapi }) => ({
       data: review
     });
   },
+  // async find(ctx) {
+  //   const { item_id, item_type } = ctx.query;
+    
+  //   let reviews = [];
+
+  //   if (item_id && item_type) {
+  //     const targetItem = itemMap.find(item => item.key === item_type);
+  //     if (targetItem) {
+  //       reviews = await strapi.entityService.findMany("api::review.review", {
+  //         filters: { [item_type]: item_id },
+  //         populate: defaultPopulate,
+  //       });
+  //     }
+  //   } else {
+  //     // If no specific item ID is provided, return all reviews
+  //     reviews = await strapi.entityService.findMany("api::review.review", {
+  //       populate: defaultPopulate,
+  //     });
+  //   }
+    
+  //   return ctx.send({
+  //     success: true,
+  //     message: "Reviews fetched successfully.",
+  //     data: reviews
+  //   });
+  // },
+
+  // async findOne(ctx) {
+  //   const { id } = ctx.params;
+  //   const review = await strapi.entityService.findOne(
+  //     "api::review.review",
+  //     id,
+  //     { populate: defaultPopulate }
+  //   );
+  //   if (!review) return ctx.notFound("Review not found.");
+  //   return ctx.send({
+  //     success: true,
+  //     message: "Review fetched successfully.",
+  //     data: review
+  //   });
+  // },
 }));
 
 

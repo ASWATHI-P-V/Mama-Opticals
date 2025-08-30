@@ -301,6 +301,8 @@ module.exports = createCoreController("api::product.product", ({ strapi }) => ({
       return ctx.send({ success: false, message: customizedError.message });
     }
   },
+
+  //MARK: findone
 async findOne(ctx) {
     try {
       const { id } = ctx.params;
@@ -316,7 +318,11 @@ async findOne(ctx) {
         frame_materials: true,
         frame_shapes: true,
         lens_thicknesses: true,
-        reviews: true,
+        reviews: {
+          populate: {
+            user: true,
+          },
+        },
         // Populate the 'variants' relation and its nested 'eyewear_type' relation
         variants: {
           populate: {
@@ -348,6 +354,12 @@ async findOne(ctx) {
             select: ["id"],
           });
         isWishlisted = !!wishlistCheck;
+      }
+
+      // NEW: Check if the current user has reviewed this product
+      let isReviewed = false;
+      if (user && user.id && product.reviews && Array.isArray(product.reviews)) {
+        isReviewed = product.reviews.some(review => review.user && review.user.id === user.id);
       }
 
       const sanitizedProduct = await strapiUtils.sanitize.contentAPI.output(
@@ -403,6 +415,7 @@ async findOne(ctx) {
       const finalProduct = {
         ...sanitizedProduct,
         isWishlisted: isWishlisted,
+        isReviewed: isReviewed,
         color_picker: Array.from(color_picker).map((c) => JSON.parse(c)),
         frame_sizes: Array.from(frameSizes).map((s) => JSON.parse(s)),
         color: Array.from(color).map((s) => JSON.parse(s)),
@@ -435,6 +448,7 @@ async findOne(ctx) {
    * @param {object} ctx Koa context.
    * @returns {object} The response object with success status and data.
    */
+  //MARK:find
   async find(ctx) {
     try {
       const { query } = ctx;
@@ -453,7 +467,11 @@ async findOne(ctx) {
         frame_materials: true,
         frame_shapes: true,
         lens_thicknesses: true,
-        reviews: true,
+        reviews: {
+          populate: {
+            user: true,
+          },
+        },
         // Populate the 'variants' relation and its nested 'eyewear_type' relation
         variants: {
           populate: {
@@ -669,6 +687,7 @@ async findOne(ctx) {
         filters: filters,
         locale: locale,
       });
+      
 
       // Fetch the authenticated user's wishlist IDs if a user exists
       let wishlistedIds = new Set();
@@ -713,7 +732,7 @@ async findOne(ctx) {
             product,
             strapi.contentType("api::product.product")
           );
-
+          
           // Add the new eyeware_type key from the first variant
           if (sanitized.variants && sanitized.variants.length > 0 && sanitized.variants[0].eyewear_type && sanitized.variants[0].eyewear_type.name) {
             sanitized.eyewear_type = sanitized.variants[0].eyewear_type.name;
@@ -757,6 +776,11 @@ async findOne(ctx) {
             });
           }
 
+          // Check if the current user has reviewed this product
+          let isReviewed = false;
+          if (user && user.id && sanitized.reviews && Array.isArray(sanitized.reviews)) {
+            isReviewed = sanitized.reviews.some(review => review.user && review.user.id === user.id);
+          }
           // Apply the transformations directly
           const isWishlisted = wishlistedIds.has(sanitized.originalId);
           const categoryAsList = sanitized.category ? [sanitized.category] : [];
@@ -765,6 +789,7 @@ async findOne(ctx) {
           return {
             ...sanitized,
             isWishlisted: isWishlisted,
+            isReviewed: isReviewed,
             color_picker: Array.from(color_picker).map((c) => JSON.parse(c)),
             frame_sizes: Array.from(frameSizes).map((s) => JSON.parse(s)),
             color: Array.from(color).map((c) => JSON.parse(c)),
